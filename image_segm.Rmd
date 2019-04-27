@@ -1,10 +1,85 @@
 ---
 title: "Image Segmentation"
 author: "Derek Wayne"
-date: "27/04/2019"
-output: html_document
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  html_document:
+    df_print: paged
+    highlight: tango
+    toc: true
+    toc_float: true
+subtitle: An application of K-means
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+
+# Introduction
+
+The methods of [cluster analysis](https://derekwayne.github.io/clustering/) can be applied to the process of segmenting an image by assigning to each pixel a label indicating some form of shared characteristic such as boundaries or colours.
+
+```{r include=FALSE}
+library(imager)
+library(ggplot2)
+library(dplyr)
+library(kableExtra)
+```
+The [Imager](https://cran.r-project.org/web/packages/imager/index.html) package cotains some example images to work with.
+```{r}
+file <- system.file('extdata/parrots.png',package='imager')
+parrots <- load.image(file)
+parrots
+```
+For purposes of plotting with the ggplot2 package, which requires data be stored as a dataframe we convert the default cmig object. 
+```{r}
+parrots_df <- as.data.frame(parrots,wide="c") %>% # wide format with channels as columns
+  mutate(rgb.val=rgb(c.1,c.2,c.3)) 
+names <- c("x", "y", "R", "G", "B", "rgb.val")
+colnames(parrots_df) <- names
+```
+```{r echo=FALSE}
+kable(head(parrots_df)) %>%
+  kable_styling(bootstrap_options = "striped", full_width = F)
+```
+
+```{r echo=FALSE}
+# ggplot theme to be used
+plotTheme <- function() {
+  theme(
+    panel.background = element_rect(
+      size = 1,
+      colour = "black",
+      fill = "white"),
+    axis.ticks = element_line(
+      size = 2),
+    panel.grid.major = element_line(
+      colour = "gray80",
+      linetype = "dotted"),
+    panel.grid.minor = element_line(
+      colour = "gray90",
+      linetype = "dashed"),
+    axis.title.x = element_text(
+      size = rel(1.2)),
+    axis.title.y = element_text(
+      size = rel(1.2)),
+    plot.title = element_text(
+      size = 20,
+      vjust = 1.5)
+  )
+}
+```
+```{r echo=FALSE}
+# Plot the image
+ggplot(data = parrots_df, aes(x = x, y = y)) + 
+  geom_point(colour = rgb(parrots_df[c("R", "G", "B")])) +
+  labs(title = "Original Image: Parrots") +
+  xlab("x") +
+  ylab("y") +
+  scale_y_reverse() +
+  plotTheme()
+```
+
+
+
+
