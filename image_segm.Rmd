@@ -17,7 +17,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Introduction
 
-The methods of [cluster analysis](https://derekwayne.github.io/clustering/) can be applied to the process of segmenting an image by assigning to each pixel a label indicating some form of shared characteristic such as boundaries or colours.
+The methods of [cluster analysis](https://derekwayne.github.io/clustering/) can be applied to the process of segmenting an image by assigning to each pixel a label indicating some form of shared characteristic such as boundaries or colours. The goal is to identify important regions of an image where each segment belongs to one particular surface, object, etc. There are applications in image processing/compression, object recognition, database searching, edge detection for feature extraction and so on.
 
 ```{r include=FALSE}
 library(imager)
@@ -25,13 +25,13 @@ library(ggplot2)
 library(dplyr)
 library(kableExtra)
 ```
-The [Imager](https://cran.r-project.org/web/packages/imager/index.html) package cotains some example images to work with.
+The [Imager](https://cran.r-project.org/web/packages/imager/index.html) package cotains some example images to work with. We will import the parrots file as it can highlight the ease with which algorithms can segment within a 3 dimensional color space (*RGB*).
 ```{r}
 file <- system.file('extdata/parrots.png',package='imager')
 parrots <- load.image(file)
 parrots
 ```
-For purposes of plotting with the ggplot2 package, which requires data be stored as a dataframe we convert the default cmig object. 
+The data is stored as a `cimg` class, which behaves identically as an array. For purposes of plotting with the ggplot2 package, which requires data be stored as a dataframe we convert the default cmig object. 
 ```{r}
 parrots_df <- as.data.frame(parrots,wide="c") %>% # wide format with channels as columns
   mutate(rgb.val=rgb(c.1,c.2,c.3)) 
@@ -39,7 +39,7 @@ names <- c("x", "y", "R", "G", "B", "rgb.val")
 colnames(parrots_df) <- names
 ```
 ```{r echo=FALSE}
-kable(head(parrots_df)) %>%
+kable(head(parrots_df, 3)) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
@@ -79,6 +79,111 @@ ggplot(data = parrots_df, aes(x = x, y = y)) +
   scale_y_reverse() +
   plotTheme()
 ```
+
+The image has a wide colour palette that we hope will serve as the basis of our segmentation. Without using spacial information, each pixel has a corresponding 3-dimentional vector of color channels -- red, green, and blue. The K-means algorithm should perform well here since the colours help to differentiate the parrots from each other and the background (i.e. good separation).
+
+
+# K-Means Clustering
+
+The K-means method is a simple solution to the problem of finding clusters centers that minimize the variance within each cluster. Each cluster in our problem refers to a specific colour value. A pixel is considered to be "like" another if they are near each other in the colour space. Euclidean distance will define the notion of "nearness". K-means requires that we specify the number of clusters a-priori. What is the optimal number of clusters depends on the problem at hand. The goal of segmenting an image is only to find the colours that we deem most important in separating the objects. The salient colours in the parrots image are red, green, turquoise, yellow, white, and black. So we might choose the number of clusters to be around 6-8. Next, we need to choose a method of initalization for the pixel centers. The K-means++ algorithm is a seeding procedure fro the centers which results in an improvement of the final error and a decrease in computation time. Intuitively, initial centers should be chosen such that they are not too close together. This idea is implemented in the function below.
+
+```{r}
+# rows are centers
+centers <- function(x, k) {
+  x <- as.matrix(x)
+  center.mat <- matrix(0, nrow=k,ncol=ncol(x))
+  center.init <- x[sample(nrow(x), size=1), ]
+  center.mat[1, ] <- center.init
+  for (i in 2:k) {
+    e.dist <- sqrt(rowSums((x-center.init)^2)) # compute euclidean distance
+    probs <- e.dist^2 / (max(e.dist)^2 + 1) # weighted probability
+    center.new <- x[sample(nrow(x), size=1, prob=probs), ]
+    
+    center.mat[i, ] <- center.new
+  }
+  center.mat
+}
+```
+
+Although this initialization process does require some computational effort, the K-means procedure should converge more quickly on average. Now we will use this in conjunction with R's built in `kmeans` function.
+
+```{r}
+kmpp <- function(x, k) {
+  centers <- centers(x, k)
+  kmeans(x, centers)
+}
+```
+
+
+```{r}
+cl <- kmpp(parrots_df[, c("R", "G", "B")], k=8)
+kColours <- rgb(cl$centers[cl$cluster, ])
+```
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+cl2 <- kmpp(parrots_df[, c("R", "G", "B")], k=6)
+k2colours <- rgb(cl2$centers[cl2$cluster, ])
+ggplot(data = parrots_df, aes(x = x, y = y)) + 
+  geom_point(colour = k2colours) +
+  labs(title = paste("k-Means Clustering of", 6, "Colours")) +
+  xlab("x") +
+  ylab("y") + 
+  scale_y_reverse() +
+  plotTheme()
+
+ggplot(data = parrots_df, aes(x = x, y = y)) + 
+  geom_point(colour = kColours) +
+  labs(title = paste("k-Means Clustering of", 8, "Colours")) +
+  xlab("x") +
+  ylab("y") + 
+  scale_y_reverse() +
+  plotTheme()
+```
+
+# Application to Medical Imaging
+
+```{r}
+brain <- load.image("brain.jpg") # Read the image
+brain_df <- as.data.frame(brain,wide="c")
+names <- c("x", "y", "R", "G", "B")
+colnames(brain_df) <- names
+```
+
+```{r}
+set.seed(105)
+cl <- kmeans(brain_df[, c("R", "G", "B")], 5)
+kIntensity <- rgb(cl$centers[cl$cluster, ])
+```
+
+```{r echo = FALSE, fig.show="hold", out.width="50%"}
+# Plot the image
+ggplot(data = brain_df, aes(x = x, y = y)) + 
+  geom_point(colour = rgb(brain_df[c("R", "G", "B")])) +
+  labs(title = "Original Image: Brain") +
+  xlab("x") +
+  ylab("y") +
+  scale_y_reverse() +
+  plotTheme() +
+  coord_fixed()
+
+ggplot(data = brain_df, aes(x = x, y = y, col = factor(cl$cluster))) + 
+  geom_point() +
+  labs(title = paste("k-Means with", 5, "clusters")) +
+  xlab("x") +
+  ylab("y") + 
+  scale_y_reverse() +
+  plotTheme() +
+  coord_fixed() +
+  scale_colour_manual(values=c("white", "#000000", "darkorange1", "yellow2", "red2")) +
+  theme(legend.position = "none")
+```
+
+
+
+
+
+
+
 
 
 
