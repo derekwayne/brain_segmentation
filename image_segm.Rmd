@@ -8,6 +8,7 @@ output:
     highlight: tango
     toc: true
     toc_float: true
+knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
 subtitle: An application of K-means
 ---
 
@@ -155,7 +156,7 @@ cl <- kmeans(brain_df[, c("R", "G", "B")], 5)
 kIntensity <- rgb(cl$centers[cl$cluster, ])
 ```
 
-```{r echo = FALSE, fig.show="hold", out.width="50%"}
+```{r echo = FALSE}
 # Plot the image
 ggplot(data = brain_df, aes(x = x, y = y)) + 
   geom_point(colour = rgb(brain_df[c("R", "G", "B")])) +
@@ -166,6 +167,9 @@ ggplot(data = brain_df, aes(x = x, y = y)) +
   plotTheme() +
   coord_fixed()
 
+```
+
+```{r echo=FALSE}
 ggplot(data = brain_df, aes(x = x, y = y, col = factor(cl$cluster))) + 
   geom_point() +
   labs(title = paste("k-Means with", 5, "clusters")) +
