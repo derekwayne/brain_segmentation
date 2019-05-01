@@ -1,15 +1,17 @@
 ---
-title: "Image Segmentation"
+title: "<br>Image Segmentation"
 author: "Derek Wayne"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
   html_document:
     df_print: paged
     highlight: tango
-    toc: true
-    toc_float: true
+    css: style.css
+    includes:
+      before_body: header.html
+      after_body: footer.html
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
-subtitle: An application of K-means
+subtitle: Applications to Neuroimaging Analysis
 ---
 
 ```{r setup, include=FALSE}
