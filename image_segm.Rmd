@@ -20,7 +20,9 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Introduction
 
-The methods of [cluster analysis](https://derekwayne.github.io/clustering/) can be applied to the process of segmenting an image by assigning to each pixel a label indicating some form of shared characteristic such as boundaries or colours. The goal is to identify important regions of an image where each segment belongs to one particular surface, object, etc. There are applications in image processing/compression, object recognition, database searching, edge detection for feature extraction and so on.
+The methods of [cluster analysis](https://derekwayne.github.io/clustering/) can be applied to the process of segmenting an image by assigning to each pixel a label indicating some form of shared characteristic such as boundaries or colours. The goal is to identify important regions of an image where each segment belongs to one particular surface, object, etc. There are applications in image processing/compression, object recognition, database searching, and edge detection for feature extraction.
+
+The purpose of this project is to go over in detail the process of segmenting an image. The image involved will determine which frameworks are most effective in achieving a good segmentation of the image. We will look at the K-means algorithm, which performs well when objects in an image are well separated in a colour space; and we will look at a more advanced procedure for the task of segmenting soft tissues present in medical images of the brain.
 
 ```{r include=FALSE}
 library(imager)
@@ -88,7 +90,7 @@ The image has a wide colour palette that we hope will serve as the basis of our 
 
 # K-Means Clustering
 
-The K-means method is a simple solution to the problem of finding clusters centers that minimize the variance within each cluster. Each cluster in our problem refers to a specific colour value. A pixel is considered to be "like" another if they are near each other in the colour space. Euclidean distance will define the notion of "nearness". K-means requires that we specify the number of clusters a-priori. What is the optimal number of clusters depends on the problem at hand. The goal of segmenting an image is only to find the colours that we deem most important in separating the objects. The salient colours in the parrots image are red, green, turquoise, yellow, white, and black. So we might choose the number of clusters to be around 6-8. Next, we need to choose a method of initalization for the pixel centers. The K-means++ algorithm is a seeding procedure fro the centers which results in an improvement of the final error and a decrease in computation time. Intuitively, initial centers should be chosen such that they are not too close together. This idea is implemented in the function below.
+The K-means method is a simple solution to the problem of finding clusters centers that minimize the variance within each cluster. Each cluster in our problem refers to a specific colour value. Consequently, a pixel is considered to be "like" another if they are near each other in the colour space. Euclidean distance will define the notion of "nearness". K-means requires that we specify the number of clusters a-priori. Determining the optimal number of clusters depends on the problem at hand. The goal of segmenting an image is only to find the clusters/colours that we deem most important in separating the objects. The salient colours in the parrots image are red, green, turquoise, yellow, white, and black. So we might choose the number of clusters to be around 6-8. Next, we need to choose a method of initalization for the pixel centers. The K-means++ algorithm is a seeding procedure for the centers which results in an improvement of the final error and a decrease in computation time. Intuitively, initial centers should be chosen such that they are not too close together. This idea is implemented in the function below.
 
 ```{r}
 # rows are centers
@@ -143,47 +145,57 @@ ggplot(data = parrots_df, aes(x = x, y = y)) +
   plotTheme()
 ```
 
-# Application to Medical Imaging
+# Application to Neuroimaging
+
+A magnetic resonance imaging (MRI) scan of the brain presents an important application of image-based segmentation. The three main tissue classes that are normally segmentated in a scan are white matter (WM), gray matter (GM), and cerebrospinal fluid (CSF). Facilitating segmentation requires high contrasts between these tissue types. To generate improved tissue contrasts requires varying parameters of the pulse sequences responsible for causing the hydrogen atoms contained in the body to emit radio frequencies when subjected to a magnetic field. The contrasts achieved through MRI scans is an improvement over computed tomography. However, results still suffer from the following obstacles to segmentation
+
+1. Electronic noise -- disturbance in the electrical signal
+2. A bias field -- An unwanted artifact producing inhomogenous intensities of tissue regions
+3. The partial volume effect -- overlap of tissue classes within a voxel
+
+The paper [Segmentation of Brain MR Images Through a Hidden Markov Random Field Model and the Expectation-Maximization Algorith](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.200.3832&rep=rep1&type=pdf) by Yongyue Zhang et al. provides justification for a Hidden Markov Random Field (HMRF) model together with an Expectation Maximization (EM) method of iterative parameter updating, for a framework that effectively overcomes these difficulties in segmentation.
+
+In this project we adopt this framework to segment a single 2-D slice taken from an MRI scan obtained from [Neuromorphometrics, Inc.](http://www.neuromorphometrics.com/?page_id=310). The success of this approach offers a means for automatic brain MR image segmentation.
+
+## NIfTI data format
+
+The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the **mritc** package can be used to obtain an array with the appropriate image dimensions. 
+
+```{r include=FALSE}
+library(mritc)
+```
+```{r}
+# Read in NIfTI data
+# data <- readMRI("NIFTI/1103_3.nii", format="nifti")
+img <- readNIfTI("NIFTI/1103_3.nii")
+# See all attributes of the NIfTI object
+img
+```
+
+First we need to access the data in the object. Next we want to select particular slice ranging over the z-values of the three dimensional space and visualize a transverse segment.
 
 ```{r}
-brain <- load.image("brain.jpg") # Read the image
-brain_df <- as.data.frame(brain,wide="c")
-names <- c("x", "y", "R", "G", "B")
-colnames(brain_df) <- names
+data = slot(img, ".Data")
+class(data)
+slice = data[,,140] # where z=140
 ```
 
-```{r}
-set.seed(105)
-cl <- kmeans(brain_df[, c("R", "G", "B")], 5)
-kIntensity <- rgb(cl$centers[cl$cluster, ])
-```
-
-```{r echo = FALSE}
-# Plot the image
-ggplot(data = brain_df, aes(x = x, y = y)) + 
-  geom_point(colour = rgb(brain_df[c("R", "G", "B")])) +
-  labs(title = "Original Image: Brain") +
-  xlab("x") +
-  ylab("y") +
-  scale_y_reverse() +
-  plotTheme() +
-  coord_fixed()
-
-```
-
-```{r echo=FALSE}
-ggplot(data = brain_df, aes(x = x, y = y, col = factor(cl$cluster))) + 
-  geom_point() +
-  labs(title = paste("k-Means with", 5, "clusters")) +
-  xlab("x") +
-  ylab("y") + 
-  scale_y_reverse() +
-  plotTheme() +
+```{r, echo = FALSE}
+slice <- as.cimg(slice)
+slice_df <- as.data.frame(slice)
+p <- ggplot(slice_df,aes(x,y))+geom_raster(aes(fill=value)) +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0),trans=scales::reverse_trans()) +
+  scale_fill_gradient(low="black",high="white") +
   coord_fixed() +
-  scale_colour_manual(values=c("white", "#000000", "darkorange1", "yellow2", "red2")) +
+  plotTheme() +
   theme(legend.position = "none")
+p
 ```
 
+## The HMRF-EM Model
+
+*In Progress*
 
 
 
