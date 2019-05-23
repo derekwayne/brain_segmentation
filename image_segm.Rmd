@@ -180,7 +180,14 @@ class(data)
 slice = data[,,140] # where z=140
 ```
 
-```{r, echo = FALSE}
+The two dimensional image has pixel dimensions:
+
+```{r}
+dim(slice)
+```
+
+
+```{r, echo = FALSE, fig.cap="Transverse slice"}
 slice <- as.cimg(slice)
 slice_df <- as.data.frame(slice)
 p <- ggplot(slice_df,aes(x,y))+geom_raster(aes(fill=value)) +
@@ -195,7 +202,7 @@ p
 
 ## The HMRF-EM Model
 
-*In Progress*
+To make inferences on the data we consider an image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to the pixels (or groups of pixels) making up the image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). To incorperate the greater likelihood of neighbouring pixels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between pixels $Y_i$ and $Y_j$. A Markov model accounts only for the dependencies between pixels sharing a common edge. This is not as limitting as it seems due to the way that Markov models capture extended correlations within short range connections.
 
 
 
