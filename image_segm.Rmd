@@ -200,12 +200,28 @@ p <- ggplot(slice_df,aes(x,y))+geom_raster(aes(fill=value)) +
 p
 ```
 
-## The HMRF-EM Model
+## Constructing a Markov Random Field
 
-To make inferences on the data we consider an image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to the pixels (or groups of pixels) making up the image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). To incorperate the greater likelihood of neighbouring pixels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between pixels $Y_i$ and $Y_j$. A Markov model accounts only for the dependencies between pixels sharing a common edge. This is not as limitting as it seems due to the way that Markov models capture extended correlations within short range connections.
+To make inferences on the data we consider an image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to the pixels (or groups of pixels) making up the image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). To incorperate the greater likelihood of neighbouring pixels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between pixels. A Markov model accounts only for the dependencies between pixels sharing a common edge. That is, for pixel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$. 
 
+The sequence of pixel labels, denoted $\{X_1, \dots, X_{256^2}\}$ is said to be a Markov Random Field (MRF) on the state space $\mathcal{S}$ with respect to $\mathcal{N}$, if and only if it has the following properties:
 
+1. $P(\mathbf{x}) > 0$, for all $\mathbf{x}$
+2. The $X_i$'s are dependent only on their neighboring sites $\mathcal{N_i}$ for all $i$
 
+[The Hammersley-Clifford theorem](https://en.wikipedia.org/wiki/Hammersley%E2%80%93Clifford_theorem) states that a MRF with the properties listed above is equivalently a Gibbs random field -- that is, we may express the MRF as a Gibbs distribution:
+$$
+P(\mathbf{x}) = \frac{1}{Z}exp\bigg\{-\sum_{c\in\mathcal{C}}\Psi_c(\mathbf{x}) \bigg\}
+$$
+where $Z$ represents the normalizing constant (or partition function) to make the distribution sum to unity, and $E(\mathbf{x}) = \sum_{c \in \mathcal{C}}\Psi_c(\mathbf{x})$ is the cost function for the learning stage. Here $\mathcal{C}$ denotes the collection of cliques in the graph $\mathcal{G}$. A clique $c$ is a subgraph of $\mathcal{G}$ that is fully connected -- meaning each distinct pair of pixel sites ($i, j \, : i\neq j$) are neighbouring ($i \in \mathcal{N_j} \wedge j \in \mathcal{N_i}$).
+
+The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathbf{x})$ when two adjacent pixels have similar intensities, and thus increase the joint probability $P(\mathbf{x})$.
+
+## A Special Case of a Hidden Markov Model
+
+Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, 256^2\}$ the sequence of pixel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
+
+In addition to the hidden random field $\{X_i, i = 1, 2, \dots, 256^2 \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, 256^2\}$ having the finite state space $\mathcal{D}$.
 
 
 
