@@ -163,6 +163,7 @@ The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvem
 
 ```{r include=FALSE}
 library(mritc)
+library(tkrplot)
 ```
 ```{r}
 # Read in NIfTI data
@@ -223,7 +224,24 @@ Without the spacial property incorperated by the definition of the neighbourhood
 
 In addition to the hidden random field $\{X_i, i = 1, 2, \dots, 256^2 \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, 256^2\}$ having the finite state space $\mathcal{D}$.
 
-Given a sequence of class labels $\{x_i \}$ the likelihood of each observed pixel value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_{x_i})$, with $\theta_{x_i}$ being the parameters to estimate. We call $Y$ the *emitted random field.
+Given a sequence of class labels $\{x_i \}$ the likelihood of each observed pixel value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_{x_i})$, with $\theta_{x_i}$ being the parameters to estimate. We call $Y$ the *emitted random field*.
+
+```{r}
+T1 <- readMRI(system.file("extdata/t1.rawb.gz", package="mritc"),
+              c(91, 109, 91), format="rawb.gz")
+mask <- readMRI(system.file("extdata/mask.rawb.gz", package="mritc"),
+                c(91, 109, 91), format="rawb.gz")
+y <- T1[mask==1]
+initial <- initOtsu(y, 2)
+prop <- initial$prop
+mu <- initial$mu
+sigma <- initial$sigma
+tc.em <- mritc.em(y, prop, mu, sigma, verbose = TRUE)
+```
+```{r}
+tc.icm <- mritc(T1, mask, method = "ICM")
+plot(tc.icm)
+```
 
 
 
