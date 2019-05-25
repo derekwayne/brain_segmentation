@@ -29,6 +29,7 @@ library(imager)
 library(ggplot2)
 library(dplyr)
 library(kableExtra)
+library(knitr)
 ```
 The [Imager](https://cran.r-project.org/web/packages/imager/index.html) package cotains some example images to work with. We will import the parrots file as it can highlight the ease with which algorithms can segment within a 3 dimensional color space (*RGB*).
 ```{r}
@@ -48,7 +49,7 @@ kable(head(parrots_df, 3)) %>%
   kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
-```{r echo=FALSE}
+```{r plotting theme, echo=FALSE}
 # ggplot theme to be used
 plotTheme <- function() {
   theme(
@@ -74,15 +75,20 @@ plotTheme <- function() {
   )
 }
 ```
-```{r echo=FALSE}
+```{r eval=FALSE, include=FALSE}
 # Plot the image
-ggplot(data = parrots_df, aes(x = x, y = y)) + 
+ggplot(data = parrots_df, aes(x = x, y = y)) +
   geom_point(colour = rgb(parrots_df[c("R", "G", "B")])) +
-  labs(title = "Original Image: Parrots") +
+  labs(title = "Original Image") +
   xlab("x") +
   ylab("y") +
   scale_y_reverse() +
-  plotTheme()
+  plotTheme() +
+  coord_fixed()
+ggsave("images/parrots_original.jpg")
+```
+```{r echo=FALSE, out.width = '100%'}
+include_graphics("images/parrots_original.jpg")
 ```
 
 The image has a wide colour palette that we hope will serve as the basis of our segmentation. Without using spacial information, each pixel has a corresponding 3-dimentional vector of color channels -- red, green, and blue. The K-means algorithm should perform well here since the colours help to differentiate the parrots from each other and the background (i.e. good separation).
@@ -125,29 +131,37 @@ cl <- kmpp(parrots_df[, c("R", "G", "B")], k=8)
 kColours <- rgb(cl$centers[cl$cluster, ])
 ```
 
-```{r echo=FALSE, fig.show="hold", out.width="50%"}
+```{r eval=FALSE, fig.show="hold", include=FALSE, out.width="50%"}
 cl2 <- kmpp(parrots_df[, c("R", "G", "B")], k=6)
 k2colours <- rgb(cl2$centers[cl2$cluster, ])
-ggplot(data = parrots_df, aes(x = x, y = y)) + 
+ggplot(data = parrots_df, aes(x = x, y = y)) +
   geom_point(colour = k2colours) +
   labs(title = paste("k-Means Clustering of", 6, "Colours")) +
   xlab("x") +
-  ylab("y") + 
+  ylab("y") +
   scale_y_reverse() +
-  plotTheme()
+  plotTheme() +
+  coord_fixed()
+ggsave("images/parrots_6cl.jpg")
 
-ggplot(data = parrots_df, aes(x = x, y = y)) + 
+ggplot(data = parrots_df, aes(x = x, y = y)) +
   geom_point(colour = kColours) +
   labs(title = paste("k-Means Clustering of", 8, "Colours")) +
   xlab("x") +
-  ylab("y") + 
+  ylab("y") +
   scale_y_reverse() +
-  plotTheme()
+  plotTheme() +
+  coord_fixed()
+ggsave("images/parrots_8cl.jpg")
+```
+```{r echo=FALSE, out.width = "50%", fig.show="hold"}
+include_graphics("images/parrots_6cl.jpg")
+include_graphics("images/parrots_8cl.jpg")
 ```
 
 # Application to Neuroimaging
 
-A magnetic resonance imaging (MRI) scan of the brain presents an important application of image-based segmentation. The three main tissue classes that are normally segmentated in a scan are white matter (WM), gray matter (GM), and cerebrospinal fluid (CSF). Facilitating segmentation requires high contrasts between these tissue types. To generate improved tissue contrasts requires varying parameters of the pulse sequences responsible for causing the hydrogen atoms contained in the body to emit radio frequencies when subjected to a magnetic field. The contrasts achieved through MRI scans is an improvement over computed tomography. However, results still suffer from the following obstacles to segmentation
+A magnetic resonance imaging (MRI) scan of the brain presents an important application of image-based segmentation. For example, an accurately segmented scan can assist in the diagnosis of brain disease and in the preparation of surgery. The three main tissue classes that are normally segmentated in a scan are white matter (WM), gray matter (GM), and cerebrospinal fluid (CSF). Facilitating segmentation requires high contrasts between these tissue types. To generate improved tissue contrasts requires varying parameters of the pulse sequences responsible for causing the hydrogen atoms contained in the body to emit radio frequencies when subjected to a magnetic field. The contrasts achieved through MRI scans is an improvement over computed tomography. However, results still suffer from the following obstacles to segmentation
 
 1. Electronic noise -- disturbance in the electrical signal
 2. A bias field -- An unwanted artifact producing inhomogenous intensities of tissue regions
@@ -159,7 +173,7 @@ In this project we adopt this framework to segment a single 2-D slice taken from
 
 ## NIfTI data format
 
-The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the **mritc** package can be used to obtain an array with the appropriate image dimensions. 
+The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the *mritc* package can be used to obtain an array with the appropriate image dimensions. 
 
 ```{r include=FALSE}
 library(mritc)
@@ -167,18 +181,15 @@ library(tkrplot)
 ```
 ```{r}
 # Read in NIfTI data
-# data <- readMRI("NIFTI/1103_3.nii", format="nifti")
-img <- readNIfTI("NIFTI/1103_3.nii")
-# See all attributes of the NIfTI object
-img
+T1 <- readMRI(system.file("extdata/t1.rawb.gz", package="mritc"),
+              c(91, 109, 91), format="rawb.gz")
+
 ```
 
 First we need to access the data in the object. Next we want to select particular slice ranging over the z-values of the three dimensional space and visualize a transverse segment.
 
 ```{r}
-data = slot(img, ".Data")
-class(data)
-slice = data[,,140] # where z=140
+slice = T1[,,50] # where z=50
 ```
 
 The two dimensional image has pixel dimensions:
@@ -188,10 +199,11 @@ dim(slice)
 ```
 
 
-```{r, echo = FALSE, fig.cap="Transverse slice"}
+```{r, echo = FALSE, fig.show="hold", out.width="50%"}
 slice <- as.cimg(slice)
 slice_df <- as.data.frame(slice)
 p <- ggplot(slice_df,aes(x,y))+geom_raster(aes(fill=value)) +
+  labs(title = "Axial/Transverse View") +
   scale_x_continuous(expand=c(0,0)) +
   scale_y_continuous(expand=c(0,0),trans=scales::reverse_trans()) +
   scale_fill_gradient(low="black",high="white") +
@@ -199,13 +211,19 @@ p <- ggplot(slice_df,aes(x,y))+geom_raster(aes(fill=value)) +
   plotTheme() +
   theme(legend.position = "none")
 p
+
+
+ggplot(slice_df, aes(x=value)) +
+  labs(title = "Histogram of Signal Intensities") +
+  geom_histogram(bins=45) +
+  plotTheme()
 ```
 
 ## Constructing a Markov Random Field
 
 To make inferences on the data we consider an image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to the pixels (or groups of pixels) making up the image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). To incorperate the greater likelihood of neighbouring pixels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between pixels. A Markov model accounts only for the dependencies between pixels sharing a common edge. That is, for pixel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$. 
 
-The sequence of pixel labels, denoted $\{X_1, \dots, X_{256^2}\}$ is said to be a Markov Random Field (MRF) on the state space $\mathcal{S}$ with respect to $\mathcal{N}$, if and only if it has the following properties:
+The sequence of pixel labels, denoted $\{X_1, \dots, X_{91 \times 109}\}$ is said to be a Markov Random Field (MRF) on the state space $\mathcal{S}$ with respect to $\mathcal{N}$, if and only if it has the following properties:
 
 1. $P(\mathbf{x}) > 0$, for all $\mathbf{x}$
 2. The $X_i$'s are dependent only on their neighboring sites $\mathcal{N_i}$ for all $i$
@@ -220,15 +238,13 @@ The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathb
 
 ## A Special Case of a Hidden Markov Model
 
-Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, 256^2\}$ the sequence of pixel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
+Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, 91 \times 109\}$ the sequence of pixel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
 
-In addition to the hidden random field $\{X_i, i = 1, 2, \dots, 256^2 \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, 256^2\}$ having the finite state space $\mathcal{D}$.
+In addition to the hidden random field $\{X_i, i = 1, 2, \dots, 91 \times 109 \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, 91 \times 109\}$ having the finite state space $\mathcal{D}$.
 
 Given a sequence of class labels $\{x_i \}$ the likelihood of each observed pixel value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_{x_i})$, with $\theta_{x_i}$ being the parameters to estimate. We call $Y$ the *emitted random field*.
 
 ```{r}
-T1 <- readMRI(system.file("extdata/t1.rawb.gz", package="mritc"),
-              c(91, 109, 91), format="rawb.gz")
 mask <- readMRI(system.file("extdata/mask.rawb.gz", package="mritc"),
                 c(91, 109, 91), format="rawb.gz")
 y <- T1[mask==1]
@@ -236,12 +252,31 @@ initial <- initOtsu(y, 2)
 prop <- initial$prop
 mu <- initial$mu
 sigma <- initial$sigma
-# tc.em <- mritc.em(y, prop, mu, sigma, verbose = TRUE)
 ```
 ```{r}
 tc.icm <- mritc(T1, mask, method = "ICM")
-plot(tc.icm)
 ```
+```{r}
+t1 <- T1
+t1[mask == 1] <- 0
+icm.class <- max.col(tc.icm$prob)
+tc.icm$mask[tc.icm$mask == 1] <- icm.class
+head(tc.icm$mask)
+
+mask <- as.cimg(tc.icm$mask[,,50])
+
+mask_df <- as.data.frame(mask)
+ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
+  labs(title = "Axial/Transverse View") +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0),trans=scales::reverse_trans()) +
+  scale_fill_gradient(low="black",high="white") +
+  coord_fixed() +
+  plotTheme() +
+  theme(legend.position = "none")
+```
+
+
 
 
 
