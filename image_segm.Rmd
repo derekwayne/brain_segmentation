@@ -236,7 +236,7 @@ initial <- initOtsu(y, 2)
 prop <- initial$prop
 mu <- initial$mu
 sigma <- initial$sigma
-tc.em <- mritc.em(y, prop, mu, sigma, verbose = TRUE)
+# tc.em <- mritc.em(y, prop, mu, sigma, verbose = TRUE)
 ```
 ```{r}
 tc.icm <- mritc(T1, mask, method = "ICM")
