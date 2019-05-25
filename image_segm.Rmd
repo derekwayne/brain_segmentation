@@ -223,6 +223,13 @@ Without the spacial property incorperated by the definition of the neighbourhood
 
 In addition to the hidden random field $\{X_i, i = 1, 2, \dots, 256^2 \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, 256^2\}$ having the finite state space $\mathcal{D}$.
 
+Given a sequence of class labels $\{x_i \}$ the likelihood of each observed pixel value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_{x_i})$, with $\theta_{x_i}$ being the parameters to estimate. We call $Y$ the *emitted random field.
+
+
+
+
+
+
 
 
 
