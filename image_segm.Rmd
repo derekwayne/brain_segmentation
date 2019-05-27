@@ -160,6 +160,7 @@ include_graphics("images/parrots_8cl.jpg")
 ```
 
 # Application to Neuroimaging
+## Segmentation of T1-weighted Brain MR Acquisitions
 
 A magnetic resonance imaging (MRI) scan of the brain presents an important application of image-based segmentation. For example, an accurately segmented scan can assist in the diagnosis of brain disease and in the preparation of surgery. The three main tissue classes that are normally segmentated in a scan are white matter (WM), gray matter (GM), and cerebrospinal fluid (CSF). Facilitating segmentation requires high contrasts between these tissue types. To generate improved tissue contrasts requires varying parameters of the pulse sequences responsible for causing the hydrogen atoms contained in the body to emit radio frequencies when subjected to a magnetic field. The contrasts achieved through MRI scans is an improvement over computed tomography. However, results still suffer from the following obstacles to segmentation
 
@@ -169,11 +170,13 @@ A magnetic resonance imaging (MRI) scan of the brain presents an important appli
 
 The paper [Segmentation of Brain MR Images Through a Hidden Markov Random Field Model and the Expectation-Maximization Algorith](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.200.3832&rep=rep1&type=pdf) by Yongyue Zhang et al. provides justification for a Hidden Markov Random Field (HMRF) model together with an Expectation Maximization (EM) method of iterative parameter updating, for a framework that effectively overcomes these difficulties in segmentation.
 
-In this project we adopt this framework to segment a single 2-D slice taken from an MRI scan obtained from [Neuromorphometrics, Inc.](http://www.neuromorphometrics.com/?page_id=310). The success of this approach offers a means for automatic brain MR image segmentation.
+In this project we adopt this framework to segment an MRI scan obtained from the *mritc* package. The success of this approach offers a means for automatic brain MR image segmentation.
 
 ## NIfTI data format
-
-The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the *mritc* package can be used to obtain an array with the appropriate image dimensions. 
+```{r echo=FALSE, out.width = "20%", , fig.cap="Figure 1: Voxel Neighbourhoods", out.extra='style="float:right; padding:10px"'}
+include_graphics("images/voxels.png")
+```
+The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the *mritc* package can be used to obtain a three dimensional array with the appropriate image dimensions. The three dimensional analogue to a pixel is called a voxel (see Figure 1); representing a signal intensity (ranging from 0 to 251).
 
 ```{r include=FALSE}
 library(mritc)
@@ -183,37 +186,65 @@ library(tkrplot)
 # Read in NIfTI data
 T1 <- readMRI(system.file("extdata/t1.rawb.gz", package="mritc"),
               c(91, 109, 91), format="rawb.gz")
-
+# Read in the mask for non-brain matter
+mask <- readMRI(system.file("extdata/mask.rawb.gz", package="mritc"),
+                c(91, 109, 91), format="rawb.gz")
 ```
 
-First we need to access the data in the object. Next we want to select particular slice ranging over the z-values of the three dimensional space and visualize a transverse segment.
-
-```{r}
-slice = T1[,,50] # where z=50
-```
-
-The two dimensional image has pixel dimensions:
-
-```{r}
-dim(slice)
+```{r include=FALSE}
+slice1 <- T1[,,45] # axial
+slice2 <- T1[45,,] # coronal
+slice3 <- T1[,50,] # saggital
 ```
 
 
-```{r, echo = FALSE, fig.show="hold", out.width="50%"}
-slice <- as.cimg(slice)
-slice_df <- as.data.frame(slice)
-p <- ggplot(slice_df,aes(x,y))+geom_raster(aes(fill=value)) +
+```{r, echo = FALSE, fig.show="hold", out.width="40%"}
+slice_df1 <- as.cimg(slice1) %>% as.data.frame()
+slice_df2 <- as.cimg(slice2) %>% as.data.frame()
+slice_df3 <- as.cimg(slice3) %>% as.data.frame()
+
+
+p1 <- ggplot(slice_df1,aes(x,y))+geom_raster(aes(fill=value)) +
   labs(title = "Axial/Transverse View") +
   scale_x_continuous(expand=c(0,0)) +
-  scale_y_continuous(expand=c(0,0),trans=scales::reverse_trans()) +
+  scale_y_continuous(expand=c(0,0)) +
   scale_fill_gradient(low="black",high="white") +
   coord_fixed() +
   plotTheme() +
   theme(legend.position = "none")
-p
+p1
 
+ggplot(slice_df1, aes(x=value)) +
+  labs(title = "Histogram of Signal Intensities") +
+  geom_histogram(bins=45) +
+  plotTheme()
 
-ggplot(slice_df, aes(x=value)) +
+p2 <- ggplot(slice_df2,aes(x,y))+geom_raster(aes(fill=value)) +
+  labs(title = "Saggital View") +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  scale_fill_gradient(low="black",high="white") +
+  coord_fixed() +
+  plotTheme() +
+  theme(legend.position = "none")
+p2
+
+ggplot(slice_df2, aes(x=value)) +
+  labs(title = "Histogram of Signal Intensities") +
+  geom_histogram(bins=45) +
+  plotTheme()
+
+p3 <- ggplot(slice_df3,aes(x,y))+geom_raster(aes(fill=value)) +
+  labs(title = "Coronal View") +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  scale_fill_gradient(low="black",high="white") +
+  coord_fixed() +
+  plotTheme() +
+  theme(legend.position = "none")
+p3
+
+ggplot(slice_df3, aes(x=value)) +
   labs(title = "Histogram of Signal Intensities") +
   geom_histogram(bins=45) +
   plotTheme()
@@ -221,9 +252,13 @@ ggplot(slice_df, aes(x=value)) +
 
 ## Constructing a Markov Random Field
 
-To make inferences on the data we consider an image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to the pixels (or groups of pixels) making up the image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). To incorperate the greater likelihood of neighbouring pixels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between pixels. A Markov model accounts only for the dependencies between pixels sharing a common edge. That is, for pixel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$. 
+To make inferences on the data we consider an three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to the pixels (or groups of pixels) making up the image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations).
+```{r echo=FALSE, out.width = "40%", , fig.cap="Figure 1: Voxel Neighbourhoods", out.extra='style="float:right; padding:10px"'}
+include_graphics("images/voxel_nbhd.png")
+```
+To incorperate the greater likelihood of neighbouring pixels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between pixels. A Markov model accounts only for the dependencies between pixels sharing a common edge. That is, for pixel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$. 
 
-The sequence of pixel labels, denoted $\{X_1, \dots, X_{91 \times 109}\}$ is said to be a Markov Random Field (MRF) on the state space $\mathcal{S}$ with respect to $\mathcal{N}$, if and only if it has the following properties:
+The sequence of pixel labels, denoted $\{X_1, \dots, X_{N}\}$ is said to be a Markov Random Field (MRF) on the state space $\mathcal{S}$ with respect to $\mathcal{N}$, if and only if it has the following properties:
 
 1. $P(\mathbf{x}) > 0$, for all $\mathbf{x}$
 2. The $X_i$'s are dependent only on their neighboring sites $\mathcal{N_i}$ for all $i$
@@ -238,15 +273,19 @@ The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathb
 
 ## A Special Case of a Hidden Markov Model
 
-Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, 91 \times 109\}$ the sequence of pixel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
+Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, N\}$ the sequence of pixel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
 
-In addition to the hidden random field $\{X_i, i = 1, 2, \dots, 91 \times 109 \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, 91 \times 109\}$ having the finite state space $\mathcal{D}$.
+In addition to the hidden random field $\{X_i, i = 1, 2, \dots, N \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, N \}$ having the finite state space $\mathcal{D} = \{0,1, \dots, 251\}$ representing the pixel intensities. We call $Y$ the *emitted random field*.
 
-Given a sequence of class labels $\{x_i \}$ the likelihood of each observed pixel value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_{x_i})$, with $\theta_{x_i}$ being the parameters to estimate. We call $Y$ the *emitted random field*.
+Given a sequence of class labels $\{x_i \}$ the likelihood of each observed pixel value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_s)$, with $\theta_s$ dependent on the states $s \in \mathcal{S}$. Accounting for the local dependencies within neighbourhoods $\mathcal{N}_i$ from the MRF, each pair $(X_i, Y_i)$ has the joint probability
+
+$$
+P(y_i , x_i \, | \, x_{\mathcal{N}_i}) = P(y_i \, | x_i)P(x_i \, | \, x_{\mathcal{N}_i})
+$$
+by applying Bayes' rule.
+
 
 ```{r}
-mask <- readMRI(system.file("extdata/mask.rawb.gz", package="mritc"),
-                c(91, 109, 91), format="rawb.gz")
 y <- T1[mask==1]
 initial <- initOtsu(y, 2)
 prop <- initial$prop
@@ -261,7 +300,6 @@ t1 <- T1
 t1[mask == 1] <- 0
 icm.class <- max.col(tc.icm$prob)
 tc.icm$mask[tc.icm$mask == 1] <- icm.class
-head(tc.icm$mask)
 
 mask <- as.cimg(tc.icm$mask[,,50])
 
@@ -275,6 +313,11 @@ ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
   plotTheme() +
   theme(legend.position = "none")
 ```
+```{r}
+tc.em <- mritc.em(y, prop, mu, sigma, verbose = TRUE)
+tc.em$mu
+```
+
 
 
 
