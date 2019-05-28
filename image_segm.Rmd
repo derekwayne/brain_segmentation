@@ -16,6 +16,7 @@ subtitle: Applications to Neuroimaging Analysis
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(eval.after = 'fig.cap')
 ```
 
 # Introduction
@@ -87,7 +88,7 @@ ggplot(data = parrots_df, aes(x = x, y = y)) +
   coord_fixed()
 ggsave("images/parrots_original.jpg")
 ```
-```{r echo=FALSE, out.width = '100%'}
+```{r echo=FALSE, out.width = '70%', fig.align="center"}
 include_graphics("images/parrots_original.jpg")
 ```
 
@@ -173,10 +174,12 @@ The paper [Segmentation of Brain MR Images Through a Hidden Markov Random Field 
 In this project we adopt this framework to segment an MRI scan obtained from the *mritc* package. The success of this approach offers a means for automatic brain MR image segmentation.
 
 ## NIfTI data format
-```{r echo=FALSE, out.width = "20%", , fig.cap="Figure 1: Voxel Neighbourhoods", out.extra='style="float:right; padding:10px"'}
+```{r echo=FALSE, out.width = "20%", out.extra='style="float:right; padding:10px"'}
 include_graphics("images/voxels.png")
 ```
-The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the *mritc* package can be used to obtain a three dimensional array with the appropriate image dimensions. The three dimensional analogue to a pixel is called a voxel (see Figure 1); representing a signal intensity (ranging from 0 to 251).
+The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the *mritc* package can be used to obtain a three dimensional array with the appropriate image dimensions. The three dimensional analogue to a pixel is called a voxel -- a unit within a three dimensional grid (as shown on the right); representing a signal intensity (ranging from 0 to 250).
+
+Source for figure to the right: https://commons.wikimedia.org/wiki/File:Voxels.svg
 
 ```{r include=FALSE}
 library(mritc)
@@ -198,7 +201,7 @@ slice3 <- T1[,50,] # saggital
 ```
 
 
-```{r, echo = FALSE, fig.show="hold", out.width="40%"}
+```{r, echo = FALSE, fig.show="hold", out.width="33%"}
 slice_df1 <- as.cimg(slice1) %>% as.data.frame()
 slice_df2 <- as.cimg(slice2) %>% as.data.frame()
 slice_df3 <- as.cimg(slice3) %>% as.data.frame()
@@ -214,11 +217,6 @@ p1 <- ggplot(slice_df1,aes(x,y))+geom_raster(aes(fill=value)) +
   theme(legend.position = "none")
 p1
 
-ggplot(slice_df1, aes(x=value)) +
-  labs(title = "Histogram of Signal Intensities") +
-  geom_histogram(bins=45) +
-  plotTheme()
-
 p2 <- ggplot(slice_df2,aes(x,y))+geom_raster(aes(fill=value)) +
   labs(title = "Saggital View") +
   scale_x_continuous(expand=c(0,0)) +
@@ -229,11 +227,6 @@ p2 <- ggplot(slice_df2,aes(x,y))+geom_raster(aes(fill=value)) +
   theme(legend.position = "none")
 p2
 
-ggplot(slice_df2, aes(x=value)) +
-  labs(title = "Histogram of Signal Intensities") +
-  geom_histogram(bins=45) +
-  plotTheme()
-
 p3 <- ggplot(slice_df3,aes(x,y))+geom_raster(aes(fill=value)) +
   labs(title = "Coronal View") +
   scale_x_continuous(expand=c(0,0)) +
@@ -243,22 +236,58 @@ p3 <- ggplot(slice_df3,aes(x,y))+geom_raster(aes(fill=value)) +
   plotTheme() +
   theme(legend.position = "none")
 p3
-
-ggplot(slice_df3, aes(x=value)) +
-  labs(title = "Histogram of Signal Intensities") +
-  geom_histogram(bins=45) +
-  plotTheme()
 ```
 
 ## Constructing a Markov Random Field
 
-To make inferences on the data we consider an three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to the pixels (or groups of pixels) making up the image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations).
-```{r echo=FALSE, out.width = "40%", , fig.cap="Figure 1: Voxel Neighbourhoods", out.extra='style="float:right; padding:10px"'}
+To make inferences on the data we consider an three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to $N = 91 \times 109 \times 91$ voxels making up the three dimensional image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). Below is a density plots of the signal intensities taken from three different levels of depth into the saggital plane.
+
+```{r, echo = FALSE, fig.show="hold", out.width="50%"}
+t1 <- T1
+t1[mask==0] <- NA #remove non brain matter using mask
+
+slice1 <- t1[50,,] %>%
+  as.cimg() %>%
+  as.data.frame()
+
+ggplot(slice1,aes(x,y))+geom_raster(aes(fill=value)) +
+  labs(title = "Saggital View: with mask") +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  scale_fill_gradient(low="black",high="white") +
+  coord_fixed() +
+  plotTheme() +
+  theme(legend.position = "none")
+
+slice2 <- t1[30,,] %>%
+  as.cimg() %>%
+  as.data.frame()
+slice3 <- t1[70,,] %>%
+  as.cimg() %>%
+  as.data.frame()
+
+library(reshape2) # need to reshape data for overlaid density plots
+df <- data.frame("x.50"=slice1$value, "x.30"=slice2$value, "x.70"=slice3$value)
+df <- suppressMessages(melt(df, na.rm = TRUE))
+
+# overlaid density plots
+ggplot(df,aes(x=value, fill=variable)) + geom_density(alpha=0.25, na.rm = TRUE) + plotTheme() +
+  labs(title = "Density plot of Signal Intensities") +
+  scale_fill_discrete(name = "Levels of Depth", labels = c("50", "30", "70"))
+  
+```
+
+Heuristically, we assume the three modes present in the above plot correspond to our three classes. CSF often attains lower values, GM tends to land somehwere in the middle, and WM most often have the highest intensities. From this information a mixture of three Gaussian distributions seems like an appropriate model. The limitation of this approach rests with the fact that there is no spacial information accounted for. 
+
+```{r echo=FALSE, out.width = "40%", out.extra='style="float:right; padding:10px"'}
 include_graphics("images/voxel_nbhd.png")
 ```
-To incorperate the greater likelihood of neighbouring pixels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between pixels. A Markov model accounts only for the dependencies between pixels sharing a common edge. That is, for pixel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$. 
 
-The sequence of pixel labels, denoted $\{X_1, \dots, X_{N}\}$ is said to be a Markov Random Field (MRF) on the state space $\mathcal{S}$ with respect to $\mathcal{N}$, if and only if it has the following properties:
+To incorperate the greater likelihood of neighbouring voxels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between voxels. A Markov model accounts only for the dependencies between voxels sharing a common edge. That is, for voxel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$.
+
+Source for figure to the right:  [Photogrammetric Engineering & Remote Sensing, Volume 84, Number 6](https://www.ingentaconnect.com/contentone/asprs/pers/2018/00000084/00000006/art00015?crawler=true&mimetype=application/pdf#)
+
+The sequence of voxel labels, denoted $\{X_1, \dots, X_{N}\}$ is said to be a Markov Random Field (MRF) on the state space $\mathcal{S}$ with respect to $\mathcal{N}$, if and only if it has the following properties:
 
 1. $P(\mathbf{x}) > 0$, for all $\mathbf{x}$
 2. The $X_i$'s are dependent only on their neighboring sites $\mathcal{N_i}$ for all $i$
@@ -267,23 +296,36 @@ The sequence of pixel labels, denoted $\{X_1, \dots, X_{N}\}$ is said to be a Ma
 $$
 P(\mathbf{x}) = \frac{1}{Z}exp\bigg\{-\sum_{c\in\mathcal{C}}\Psi_c(\mathbf{x}) \bigg\}
 $$
-where $Z$ represents the normalizing constant (or partition function) to make the distribution sum to unity, and $E(\mathbf{x}) = \sum_{c \in \mathcal{C}}\Psi_c(\mathbf{x})$ is the cost function for the learning stage. Here $\mathcal{C}$ denotes the collection of cliques in the graph $\mathcal{G}$. A clique $c$ is a subgraph of $\mathcal{G}$ that is fully connected -- meaning each distinct pair of pixel sites ($i, j \, : i\neq j$) are neighbouring ($i \in \mathcal{N_j} \wedge j \in \mathcal{N_i}$).
+where $Z$ represents the normalizing constant (or partition function) to make the distribution sum to unity, and $E(\mathbf{x}) = \sum_{c \in \mathcal{C}}\Psi_c(\mathbf{x})$ is the cost function for the learning stage. Here $\mathcal{C}$ denotes the collection of cliques in the graph $\mathcal{G}$. A clique $c$ is a subgraph of $\mathcal{G}$ that is fully connected -- meaning each distinct pair of voxel sites ($i, j \, : i\neq j$) are neighbouring ($i \in \mathcal{N_j} \wedge j \in \mathcal{N_i}$).
 
-The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathbf{x})$ when two adjacent pixels have similar intensities, and thus increase the joint probability $P(\mathbf{x})$.
+The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathbf{x})$ when two neighbouring voxels have similar intensities, and thus increase the joint probability $P(\mathbf{x})$.
 
 ## A Special Case of a Hidden Markov Model
 
-Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, N\}$ the sequence of pixel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
+Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, N\}$ the sequence of voxel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
 
-In addition to the hidden random field $\{X_i, i = 1, 2, \dots, N \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, N \}$ having the finite state space $\mathcal{D} = \{0,1, \dots, 251\}$ representing the pixel intensities. We call $Y$ the *emitted random field*.
+In addition to the hidden random field $\{X_i, i = 1, 2, \dots, N \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, N \}$ having the finite state space $\mathcal{D} = \{0,1, \dots, 250\}$ representing the voxel intensities. We call $Y$ the *emitted random field*.
 
-Given a sequence of class labels $\{x_i \}$ the likelihood of each observed pixel value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_s)$, with $\theta_s$ dependent on the states $s \in \mathcal{S}$. Accounting for the local dependencies within neighbourhoods $\mathcal{N}_i$ from the MRF, each pair $(X_i, Y_i)$ has the joint probability
+Given a sequence of class labels $\{x_i \}$ the likelihood of each observed intensity value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_s)$, with $\theta_s$ dependent on the states $s \in \mathcal{S}$. Accounting for the local dependencies within neighbourhoods $\mathcal{N}_i$ from the MRF, each pair $(X_i, Y_i)$ has the joint probability
 
 $$
 P(y_i , x_i \, | \, x_{\mathcal{N}_i}) = P(y_i \, | x_i)P(x_i \, | \, x_{\mathcal{N}_i})
 $$
-by applying Bayes' rule.
+by applying Bayes' rule (Yongyue Zhang et al., eq (8)). Thus, by marginalizing over the states $s \in \mathcal{S}$ obtain
+$$
+\begin{aligned}
+p(y_i \, | \, x_{\mathcal{N}_i}, \, \theta) &= \sum_{s \in \mathcal{S}}p(y_i, s \, | \, x_{\mathcal{N}_i}, \theta) \\
+&= \sum_{s \in \mathcal{S}} f(y_i; \theta_s)p(s \, | x_{\mathcal{N}_i})
+\end{aligned}
+$$
+where $\theta = \{\theta_s, s \in \mathcal{S} \}$ (Yongyue Zhang et al., eq (9)). Where Zhang (2001) defines this to be the *hidden Markov random field* model. We assume that the intensity values are independent and normally distributed with parameters $\theta_s = (\mu_s, \sigma_s)^T$ depending on the tissue class. That is,
 
+$$
+p(\mathbf{y} \, | \, \mathbf{x}_{\mathcal{N}}, \, \theta) = \prod_{i=1}^N\sum_{s\in \mathcal{S}}\mathcal{N}(y_i \, ; \, \mu_s, \sigma_s)p(s \, |\, x_{\mathcal{N}_i})
+$$
+It can be seen that if we had assumed that the tissue types were independent of each other, the equation above reduces to the finite normal mixture model -- thus highlighting the key difference between the HMRF model and the FM model.
+
+## Tissue Classification using Iterated Conditional Modes
 
 ```{r}
 y <- T1[mask==1]
@@ -292,6 +334,9 @@ prop <- initial$prop
 mu <- initial$mu
 sigma <- initial$sigma
 ```
+
+
+
 ```{r}
 tc.icm <- mritc(T1, mask, method = "ICM")
 ```
@@ -313,15 +358,10 @@ ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
   plotTheme() +
   theme(legend.position = "none")
 ```
-```{r}
-tc.em <- mritc.em(y, prop, mu, sigma, verbose = TRUE)
-tc.em$mu
-```
 
 
 
-
-
+### A work in progress
 
 
 
