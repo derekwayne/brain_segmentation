@@ -302,9 +302,9 @@ The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathb
 
 ## A Special Case of a Hidden Markov Model
 
-Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, N\}$ the sequence of voxel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
+Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, N\}$ the sequence of voxel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two or three dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
 
-In addition to the hidden random field $\{X_i, i = 1, 2, \dots, N \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, N \}$ having the finite state space $\mathcal{D} = \{0,1, \dots, 250\}$ representing the voxel intensities. We call $Y$ the *emitted random field*.
+In addition to the hidden random field $\{X_i, i = 1, 2, \dots, N \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, N \}$ having the finite state space $\mathcal{D} = \{0,1, \dots, 250\}$ representing the voxel intensities. We call $Y$ the *emitted random field*, where $Y_i \perp Y_j  \, | \, \mathbf{x}$ for $i \neq j$.
 
 Given a sequence of class labels $\{x_i \}$ the likelihood of each observed intensity value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_s)$, with $\theta_s$ dependent on the states $s \in \mathcal{S}$. Accounting for the local dependencies within neighbourhoods $\mathcal{N}_i$ from the MRF, each pair $(X_i, Y_i)$ has the joint probability
 
@@ -326,6 +326,25 @@ $$
 It can be seen that if we had assumed that the tissue types were independent of each other, the equation above reduces to the finite normal mixture model -- thus highlighting the key difference between the HMRF model and the FM model.
 
 ## Tissue Classification using Iterated Conditional Modes
+
+Class labels $\mathbf{x}$ will be estimated via the  *maximum a-posteriori* criterion. That is,
+$$
+\begin{aligned}
+\hat{\mathbf{x}} &= \text{arg}\max_{\mathbf{x}} \{P(\mathbf{y} \, | \, \mathbf{x})P(\mathbf{x}) \} \\
+&= \text{arg}\max_{\mathbf{x}} \bigg\{\prod_{i=1}^N\mathcal{N}(y_i \, ; \, \mu_s, \sigma_s) \, \big[e^{-E(\mathbf{x})} \big] \bigg\} \\
+&= \text{arg}\min_{\mathbf{x}}\bigg\{\sum_{i=1}^N\bigg[\frac{(y_i-\mu_{x_i})^2}{2\sigma^2_{x_i}} + log \, \sigma_{x_i} \bigg] +  \sum_{c\in\mathcal{C}}\Psi_c(\mathbf{x})\bigg\}
+\end{aligned}
+$$
+Multiple authors have suggested using the *iterated condition modes* (ICM) algorithm, which takes turns maximizing the probability of each parameter conditioned on the others. It has the advantage of fast convergence (only requiring a few iterations), but can get trapped at local maxima (or minima in this case).
+
+### Incorperating Partial Volume Effect
+
+When considering the MRF model $p(\mathbf{x})$ we may decide to include the realistic assumption that not all voxels are homogenous. It is possible that multiple tissue classes occupy the same voxel; this issue is known as the *partial volume effect*. Suppose we introduce extra classes CSF/GM with $\mu_{CSF/GM}=\frac{1}{2}(\mu_{CSF} + \mu_{GM})$, $\sigma^2_{CSF/GM}=\frac{1}{2}(\sigma^2_{CSF} + \sigma^2_{GM})$ and GM/WM with parameters defined similairly. The partial volume HMRF-EM model can be used with `mritc.pvhmrfem(...)` from the *mritc* package.
+
+## Segmentation with Bias Field Correction
+
+## Conclusion
+
 
 ```{r}
 y <- T1[mask==1]

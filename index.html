@@ -1924,8 +1924,8 @@ P(\mathbf{x}) = \frac{1}{Z}exp\bigg\{-\sum_{c\in\mathcal{C}}\Psi_c(\mathbf{x}) \
 </div>
 <div id="a-special-case-of-a-hidden-markov-model" class="section level2">
 <h2>A Special Case of a Hidden Markov Model</h2>
-<p>Without the spacial property incorperated by the definition of the neighbourhood system <span class="math inline">\(\{\mathcal{N_i}, i = 1, 2, \dots, N\}\)</span> the sequence of voxel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.</p>
-<p>In addition to the hidden random field <span class="math inline">\(\{X_i, i = 1, 2, \dots, N \}\)</span> we must model the <em>observable random field</em> <span class="math inline">\(Y = \{Y_i, i = 1,2, \dots, N \}\)</span> having the finite state space <span class="math inline">\(\mathcal{D} = \{0,1, \dots, 250\}\)</span> representing the voxel intensities. We call <span class="math inline">\(Y\)</span> the <em>emitted random field</em>.</p>
+<p>Without the spacial property incorperated by the definition of the neighbourhood system <span class="math inline">\(\{\mathcal{N_i}, i = 1, 2, \dots, N\}\)</span> the sequence of voxel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two or three dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.</p>
+<p>In addition to the hidden random field <span class="math inline">\(\{X_i, i = 1, 2, \dots, N \}\)</span> we must model the <em>observable random field</em> <span class="math inline">\(Y = \{Y_i, i = 1,2, \dots, N \}\)</span> having the finite state space <span class="math inline">\(\mathcal{D} = \{0,1, \dots, 250\}\)</span> representing the voxel intensities. We call <span class="math inline">\(Y\)</span> the <em>emitted random field</em>, where <span class="math inline">\(Y_i \perp Y_j \, | \, \mathbf{x}\)</span> for <span class="math inline">\(i \neq j\)</span>.</p>
 <p>Given a sequence of class labels <span class="math inline">\(\{x_i \}\)</span> the likelihood of each observed intensity value has the conditional probability distribution <span class="math inline">\(p(y_i \, | \, x_i, \theta_s)\)</span>, with <span class="math inline">\(\theta_s\)</span> dependent on the states <span class="math inline">\(s \in \mathcal{S}\)</span>. Accounting for the local dependencies within neighbourhoods <span class="math inline">\(\mathcal{N}_i\)</span> from the MRF, each pair <span class="math inline">\((X_i, Y_i)\)</span> has the joint probability</p>
 <p><span class="math display">\[
 P(y_i , x_i \, | \, x_{\mathcal{N}_i}) = P(y_i \, | x_i)P(x_i \, | \, x_{\mathcal{N}_i})
@@ -1941,6 +1941,23 @@ p(\mathbf{y} \, | \, \mathbf{x}_{\mathcal{N}}, \, \theta) = \prod_{i=1}^N\sum_{s
 </div>
 <div id="tissue-classification-using-iterated-conditional-modes" class="section level2">
 <h2>Tissue Classification using Iterated Conditional Modes</h2>
+<p>Class labels <span class="math inline">\(\mathbf{x}\)</span> will be estimated via the <em>maximum a-posteriori</em> criterion. That is, <span class="math display">\[
+\begin{aligned}
+\hat{\mathbf{x}} &amp;= \text{arg}\max_{\mathbf{x}} \{P(\mathbf{y} \, | \, \mathbf{x})P(\mathbf{x}) \} \\
+&amp;= \text{arg}\max_{\mathbf{x}} \bigg\{\prod_{i=1}^N\mathcal{N}(y_i \, ; \, \mu_s, \sigma_s) \, \big[e^{-E(\mathbf{x})} \big] \bigg\} \\
+&amp;= \text{arg}\min_{\mathbf{x}}\bigg\{\sum_{i=1}^N\bigg[\frac{(y_i-\mu_{x_i})^2}{2\sigma^2_{x_i}} + log \, \sigma_{x_i} \bigg] +  \sum_{c\in\mathcal{C}}\Psi_c(\mathbf{x})\bigg\}
+\end{aligned}
+\]</span> Multiple authors have suggested using the <em>iterated condition modes</em> (ICM) algorithm, which takes turns maximizing the probability of each parameter conditioned on the others. It has the advantage of fast convergence (only requiring a few iterations), but can get trapped at local maxima (or minima in this case).</p>
+<div id="incorperating-partial-volume-effect" class="section level3">
+<h3>Incorperating Partial Volume Effect</h3>
+<p>When considering the MRF model <span class="math inline">\(p(\mathbf{x})\)</span> we may decide to include the realistic assumption that not all voxels are homogenous. It is possible that multiple tissue classes occupy the same voxel; this issue is known as the <em>partial volume effect</em>. Suppose we introduce extra classes CSF/GM with <span class="math inline">\(\mu_{CSF/GM}=\frac{1}{2}(\mu_{CSF} + \mu_{GM})\)</span>, <span class="math inline">\(\sigma^2_{CSF/GM}=\frac{1}{2}(\sigma^2_{CSF} + \sigma^2_{GM})\)</span> and GM/WM with parameters defined similairly. The partial volume HMRF-EM model can be used with <code>mritc.pvhmrfem(...)</code> from the <em>mritc</em> package.</p>
+</div>
+</div>
+<div id="segmentation-with-bias-field-correction" class="section level2">
+<h2>Segmentation with Bias Field Correction</h2>
+</div>
+<div id="conclusion" class="section level2">
+<h2>Conclusion</h2>
 <div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><a class="sourceLine" id="cb8-1" title="1">y &lt;-<span class="st"> </span>T1[mask<span class="op">==</span><span class="dv">1</span>]</a>
 <a class="sourceLine" id="cb8-2" title="2">initial &lt;-<span class="st"> </span><span class="kw">initOtsu</span>(y, <span class="dv">2</span>)</a>
 <a class="sourceLine" id="cb8-3" title="3">prop &lt;-<span class="st"> </span>initial<span class="op">$</span>prop</a>
