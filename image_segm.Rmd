@@ -25,6 +25,8 @@ The methods of [cluster analysis](https://derekwayne.github.io/clustering/) can 
 
 The purpose of this project is to go over in detail the process of segmenting an image. The image involved will determine which frameworks are most effective in achieving a good segmentation of the image. We will look at the K-means algorithm, which performs well when objects in an image are well separated in a colour space; and we will look at a more advanced procedure for the task of segmenting soft tissues present in medical images of the brain.
 
+# Simple Colour-Based Example
+
 ```{r include=FALSE}
 library(imager)
 library(ggplot2)
@@ -44,10 +46,6 @@ parrots_df <- as.data.frame(parrots,wide="c") %>% # wide format with channels as
   mutate(rgb.val=rgb(c.1,c.2,c.3)) 
 names <- c("x", "y", "R", "G", "B", "rgb.val")
 colnames(parrots_df) <- names
-```
-```{r echo=FALSE}
-kable(head(parrots_df, 3)) %>%
-  kable_styling(bootstrap_options = "striped", full_width = F)
 ```
 
 ```{r plotting theme, echo=FALSE}
@@ -88,14 +86,21 @@ ggplot(data = parrots_df, aes(x = x, y = y)) +
   coord_fixed()
 ggsave("images/parrots_original.jpg")
 ```
-```{r echo=FALSE, out.width = '70%', fig.align="center"}
+```{r echo=FALSE, out.width = '50%'}
 include_graphics("images/parrots_original.jpg")
+
+# RGB Histograms
+parrots_df2 <- as.data.frame(parrots) %>%
+  mutate(channel=factor(cc,labels=c('R','G','B')))
+
+ggplot(parrots_df2,aes(value,col=channel))+geom_histogram(bins=30)+facet_wrap(~ channel) + plotTheme() + theme(legend.position = "none")
 ```
+
 
 The image has a wide colour palette that we hope will serve as the basis of our segmentation. Without using spacial information, each pixel has a corresponding 3-dimentional vector of color channels -- red, green, and blue. The K-means algorithm should perform well here since the colours help to differentiate the parrots from each other and the background (i.e. good separation).
 
 
-# K-Means Clustering
+# The K-Means++ Solution
 
 The K-means method is a simple solution to the problem of finding clusters centers that minimize the variance within each cluster. Each cluster in our problem refers to a specific colour value. Consequently, a pixel is considered to be "like" another if they are near each other in the colour space. Euclidean distance will define the notion of "nearness". K-means requires that we specify the number of clusters a-priori. Determining the optimal number of clusters depends on the problem at hand. The goal of segmenting an image is only to find the clusters/colours that we deem most important in separating the objects. The salient colours in the parrots image are red, green, turquoise, yellow, white, and black. So we might choose the number of clusters to be around 6-8. Next, we need to choose a method of initalization for the pixel centers. The K-means++ algorithm is a seeding procedure for the centers which results in an improvement of the final error and a decrease in computation time. Intuitively, initial centers should be chosen such that they are not too close together. This idea is implemented in the function below.
 
@@ -128,13 +133,15 @@ kmpp <- function(x, k) {
 
 
 ```{r}
-cl <- kmpp(parrots_df[, c("R", "G", "B")], k=8)
+cl <- kmpp(parrots_df[, c("R", "G", "B")], k=8) # 8 clusters
 kColours <- rgb(cl$centers[cl$cluster, ])
+cl2 <- kmpp(parrots_df[, c("R", "G", "B")], k=6) # 6 clusters
+k2colours <- rgb(cl2$centers[cl2$cluster, ])
 ```
 
+## Results
+
 ```{r eval=FALSE, fig.show="hold", include=FALSE, out.width="50%"}
-cl2 <- kmpp(parrots_df[, c("R", "G", "B")], k=6)
-k2colours <- rgb(cl2$centers[cl2$cluster, ])
 ggplot(data = parrots_df, aes(x = x, y = y)) +
   geom_point(colour = k2colours) +
   labs(title = paste("k-Means Clustering of", 6, "Colours")) +
@@ -343,9 +350,29 @@ When considering the MRF model $p(\mathbf{x})$ we may decide to include the real
 
 ## Segmentation with Bias Field Correction
 
-## Conclusion
+An MRI machine generates a magnetic field in order to cause hydrogen atoms within the brain to emit a radio frequency. These desired frequencies can be corrupted by another low frequency artifact known as a *bias field*. It is generally considered to be noise caused by equipment -- thus scans produced by older machines are more suspect. An automatic correction is available through `mritc.hmrf` with `bias = TRUE`.
 
+```{r echo=FALSE, out.width = "30%", out.extra='style="float:right; padding:10px"'}
+include_graphics("images/bias_field.png")
+```
 
+1. **Expectation Step**
+  + Estimate the bias field component <br> \vspace{5pt} $\quad B^{(k)} = \text{arg}\max_{B} \,\,p(B \, | \, \mathbf{y}, \mathbf{x}^{(k-1)}, \theta^{(k-1)})$
+
+  + Estimate class labels <br> $\quad \mathbf{x}^{(k)} = \text{arg}\max_{\mathbf{x}} \,\, P(\mathbf{x} \, | \, \mathbf{y}, B^{(k)}, \theta^{(k)})$
+
+2. **Maximization Step**
+  + Obtain updates for model parameters <br> $\quad \theta^{(k+1)} = \text{arg}\max_{\mathbf{\theta}} \,\, P\big(\mathbf{y} \, | \, \theta, \mathbf{x^{(k)}}, B^{(k)} \big)$
+  
+## Experiments
+
+In the following implementations we adopt the pure voxel assumption. That is, we do not consider the partial volume effect. This is because we only have data containing the true labels for three classes, and therefore cannot calculate the misclassification error assuming the extra two combination classes discussed earlier.
+
+### Initializing Parameters with Otsu's Method
+
+Both the EM (for model parameters) and ICM (for label estiamtion) algorithms are not guaranteed to converge globally. Thus, the choice of initial conditions can determine the success of the segmentation.
+
+Otsu's method can be used to determine estimates of the means and variances for each class from the grayscale histogram of an image. The algorithm seeks to find thresholds which minimize the intraclass variances.
 ```{r}
 y <- T1[mask==1]
 initial <- initOtsu(y, 2)
@@ -354,29 +381,91 @@ mu <- initial$mu
 sigma <- initial$sigma
 ```
 
+```{r include=FALSE}
+library(gridExtra)
+```
+
+```{r echo = FALSE, fig.align="center"}
+summarytable <- as.data.frame(initial) %>%
+  round(2)
+
+rownames(summarytable) <- c("CSF", "GM", "WM")
+# Set theme to allow for plotmath expressions
+tt <- ttheme_default(colhead=list(fg_params = list(parse=TRUE)), padding = unit(c(0.5,0.5), "cm"))
+tbl <- tableGrob(summarytable, theme=tt)
+
+
+d <- rnormmix(10000, prop=prop, mu=mu, sigma=sigma) %>%
+  as.data.frame()
+plt <- ggplot(data.frame("y"=y), aes(x=y)) + geom_histogram(aes(y=..density..), bins=45, fill="grey", colour="black") +
+  geom_density(aes(x=y), d, size = 0.7, fill = "blue", alpha = 0.1) + plotTheme() +
+  labs(title="Otsu Initializations", x="Intensity") +
+  theme(plot.margin = unit(c(0.4, 0, -2.4, 0.1), "cm"))
+
+
+grid.arrange(plt, tbl,
+             ncol=2,
+             as.table=TRUE,
+             heights = c(2.8,1),
+             widths = c(3,1.5))
+```
+
+## Conclusion
 
 
 ```{r}
-tc.icm <- mritc(T1, mask, method = "ICM")
+# t1 <- T1
+# t1[mask == 1] <- 0
+# icm.class <- max.col(tc.icm$prob)
+# tc.icm$mask[tc.icm$mask == 1] <- icm.class
+# 
+# mask <- as.cimg(tc.icm$mask[,,50])
+# 
+# mask_df <- as.data.frame(mask)
+# ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
+#   labs(title = "Axial/Transverse View") +
+#   scale_x_continuous(expand=c(0,0)) +
+#   scale_y_continuous(expand=c(0,0),trans=scales::reverse_trans()) +
+#   scale_fill_gradient(low="black",high="white") +
+#   coord_fixed() +
+#   plotTheme() +
+#   theme(legend.position = "none")
+```
+
+```{r}
+mrispatial <- makeMRIspatial(mask, nnei = 6, sub = FALSE)
+```
+
+
+```{r}
+tc.hmrfem <- mritc.hmrfem(y, mrispatial$neighbors, mrispatial$blocks, mu=mu, sigma=sigma, verbose = TRUE)
 ```
 ```{r}
-t1 <- T1
-t1[mask == 1] <- 0
-icm.class <- max.col(tc.icm$prob)
-tc.icm$mask[tc.icm$mask == 1] <- icm.class
-
-mask <- as.cimg(tc.icm$mask[,,50])
-
-mask_df <- as.data.frame(mask)
-ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
-  labs(title = "Axial/Transverse View") +
-  scale_x_continuous(expand=c(0,0)) +
-  scale_y_continuous(expand=c(0,0),trans=scales::reverse_trans()) +
-  scale_fill_gradient(low="black",high="white") +
-  coord_fixed() +
-  plotTheme() +
-  theme(legend.position = "none")
+tc.em <- mritc.em(y, prop=prop, mu=mu, sigma=sigma, verbose = TRUE)
 ```
+```{r}
+tc.mcmcsub.otsu <- mritc.bayes(y, mrispatial$neighbors,
+ mrispatial$blocks, mrispatial$sub, mrispatial$subvox, mu = mu,
+ sigma = sigma, verbose = FALSE)
+```
+
+
+
+
+```{r}
+csf <- readMRI(system.file("extdata/csf.rawb.gz", package = "mritc"),
+ c(91, 109, 91), format = "rawb.gz")
+gm <- readMRI(system.file("extdata/gm.rawb.gz", package = "mritc"),
+ c(91, 109, 91), format = "rawb.gz")
+wm <- readMRI(system.file("extdata/wm.rawb.gz", package = "mritc"),
+ c(91, 109, 91), format = "rawb.gz")
+
+truth <- cbind(csf[mask == 1], gm[mask == 1], wm[mask == 1])
+truth <- truth/255
+
+measureMRI(T1[mask == 1], truth, tc.hmrfem$prob)
+```
+
 
 
 
