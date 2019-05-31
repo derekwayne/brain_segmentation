@@ -1,0 +1,12 @@
+name: brain_mri_segmentation
+title: brain_mri_segmentation
+username:
+account: derekwayne
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 959533
+bundleId: 2121746
+url: https://derekwayne.shinyapps.io/brain_mri_segmentation/
+when: 1559325251.90459
+asMultiple: FALSE
+asStatic: FALSE

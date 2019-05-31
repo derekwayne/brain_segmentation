@@ -363,7 +363,9 @@ include_graphics("images/bias_field.png")
 
 2. **Maximization Step**
   + Obtain updates for model parameters <br> $\quad \theta^{(k+1)} = \text{arg}\max_{\mathbf{\theta}} \,\, P\big(\mathbf{y} \, | \, \theta, \mathbf{x^{(k)}}, B^{(k)} \big)$
-  
+
+
+Source for figure on the right: [A New Multistage Medical Segmentation Method Based on Superpixel and Fuzzy Clustering](https://www.researchgate.net/figure/The-illustration-of-bias-field-in-MRI-image_fig12_261738082)
 ## Experiments
 
 In the following implementations we adopt the pure voxel assumption. That is, we do not consider the partial volume effect. This is because we only have data containing the true labels for three classes, and therefore cannot calculate the misclassification error assuming the extra two combination classes discussed earlier.
@@ -383,9 +385,11 @@ sigma <- initial$sigma
 
 ```{r include=FALSE}
 library(gridExtra)
+library(gtable)
+library(grid)
 ```
 
-```{r echo = FALSE, fig.align="center"}
+```{r echo = FALSE, fig.align="center", out.width="70%"}
 summarytable <- as.data.frame(initial) %>%
   round(2)
 
@@ -393,63 +397,42 @@ rownames(summarytable) <- c("CSF", "GM", "WM")
 # Set theme to allow for plotmath expressions
 tt <- ttheme_default(colhead=list(fg_params = list(parse=TRUE)), padding = unit(c(0.5,0.5), "cm"))
 tbl <- tableGrob(summarytable, theme=tt)
+tbl <- gtable_add_grob(tbl,
+        grobs = rectGrob(gp = gpar(fill = NA, lwd = 2)),
+        t = 2, b = nrow(tbl), l = 1, r = ncol(tbl))
+tbl <- gtable_add_grob(tbl,
+        grobs = rectGrob(gp = gpar(fill = NA, lwd = 2)),
+        t = 1, l = 1, r = ncol(tbl))
 
 
 d <- rnormmix(10000, prop=prop, mu=mu, sigma=sigma) %>%
   as.data.frame()
-plt <- ggplot(data.frame("y"=y), aes(x=y)) + geom_histogram(aes(y=..density..), bins=45, fill="grey", colour="black") +
-  geom_density(aes(x=y), d, size = 0.7, fill = "blue", alpha = 0.1) + plotTheme() +
+plt <- ggplot(data.frame("y"=y), aes(x=y)) + geom_histogram(aes(y=..density..), bins=45, fill="darkgrey", colour="black") +
+  geom_density(aes(x=y), d, size = 0.70, fill = "steelblue", alpha = 0.5) + plotTheme() +
   labs(title="Otsu Initializations", x="Intensity") +
-  theme(plot.margin = unit(c(0.4, 0, -2.4, 0.1), "cm"))
+  theme(plot.margin = unit(c(0.4, 0.5, -2.4, 0.1), "cm"))
 
 
 grid.arrange(plt, tbl,
              ncol=2,
              as.table=TRUE,
              heights = c(2.8,1),
-             widths = c(3,1.5))
+             widths = c(2.8,1.5))
 ```
 
-## Conclusion
-
-
-```{r}
-# t1 <- T1
-# t1[mask == 1] <- 0
-# icm.class <- max.col(tc.icm$prob)
-# tc.icm$mask[tc.icm$mask == 1] <- icm.class
-# 
-# mask <- as.cimg(tc.icm$mask[,,50])
-# 
-# mask_df <- as.data.frame(mask)
-# ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
-#   labs(title = "Axial/Transverse View") +
-#   scale_x_continuous(expand=c(0,0)) +
-#   scale_y_continuous(expand=c(0,0),trans=scales::reverse_trans()) +
-#   scale_fill_gradient(low="black",high="white") +
-#   coord_fixed() +
-#   plotTheme() +
-#   theme(legend.position = "none")
-```
+### Model Fitting
 
 ```{r}
 mrispatial <- makeMRIspatial(mask, nnei = 6, sub = FALSE)
 ```
 
-
 ```{r}
-tc.hmrfem <- mritc.hmrfem(y, mrispatial$neighbors, mrispatial$blocks, mu=mu, sigma=sigma, verbose = TRUE)
-```
-```{r}
-tc.em <- mritc.em(y, prop=prop, mu=mu, sigma=sigma, verbose = TRUE)
-```
-```{r}
-tc.mcmcsub.otsu <- mritc.bayes(y, mrispatial$neighbors,
- mrispatial$blocks, mrispatial$sub, mrispatial$subvox, mu = mu,
- sigma = sigma, verbose = FALSE)
+tc.hmrfem <- mritc.hmrfem(y, mrispatial$neighbors, mrispatial$blocks, mu=mu, sigma=sigma, verbose = FALSE)
 ```
 
-
+```{r}
+tc.em <- mritc.em(y, prop=prop, mu=mu, sigma=sigma, verbose = FALSE)
+```
 
 
 ```{r}
@@ -462,21 +445,73 @@ wm <- readMRI(system.file("extdata/wm.rawb.gz", package = "mritc"),
 
 truth <- cbind(csf[mask == 1], gm[mask == 1], wm[mask == 1])
 truth <- truth/255
+```
 
-measureMRI(T1[mask == 1], truth, tc.hmrfem$prob)
+```{r fig.show="hold", out.width="50%"}
+res.hmrf <- measureMRI(T1[mask == 1], truth, tc.hmrfem$prob)
+res.em <- measureMRI(T1[mask == 1], truth, tc.em$prob)
+```
+
+```{r echo=FALSE, fig.show="hold", out.width="50%"}
+actual <- c(rep("CSF",3), rep("GM",3), rep("WM",3))
+predicted <- c(rep(c("CSF", "GM", "WM"), 3))
+value.hmrf <- as.vector(t(res.hmrf$conTable)) # obtain values from table
+value.hmrf <- round(value.hmrf, 2)
+ctable.hmrf <- data.frame(actual, predicted, value.hmrf)
+
+value.em <- as.vector(t(res.em$conTable)) # obtain values from table
+value.em <- round(value.em, 2)
+ctable.em <- data.frame(actual, predicted, value.em)
+
+
+ggplot(data =  ctable.hmrf, mapping = aes(x = predicted, y = actual)) +
+  geom_tile(aes(fill = value.hmrf), colour = "white") +
+  geom_text(aes(label =  value.hmrf), vjust = 1) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  plotTheme() + theme(legend.position = "none") +
+  labs(title = "HMRF-EM")
+
+ggplot(data =  ctable.em, mapping = aes(x = predicted, y = actual)) +
+  geom_tile(aes(fill = value.em), colour = "white") +
+  geom_text(aes(label =  value.em), vjust = 1) +
+  scale_fill_gradient(low = "white", high = "steelblue") +
+  plotTheme() + theme(legend.position = "none") +
+  labs(title = "EM")
 ```
 
 
+[Interactive Result Plots](https://derekwayne.shinyapps.io/brain_mri_segmentation/)
 
+## Conclusion
+
+
+```{r echo = FALSE}
+tc.icm <- mritc(T1, mask, method = "ICM")
+t1 <- T1
+t1[mask == 1] <- 0
+icm.class <- max.col(tc.icm$prob)
+tc.icm$mask[tc.icm$mask == 1] <- icm.class
+```
+
+```{r echo = FALSE}
+plt_brain <- function(plane = "saggital", k, mask) {
+  # mask is a three dimensional array -- from mritc object
+  
+  if (plane == "saggital") mask.img <- as.cimg(tc.icm$mask[k,,])
+  else if (plane == "coronal") mask.img <- as.cimg(tc.icm$mask[,k,])
+  else mask.img <- as.cimg(tc.icm$mask[,,k])
+  
+  mask_df <- as.data.frame(mask.img)
+  
+ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
+  labs(title = "Axial/Transverse View") +
+  scale_x_continuous(expand=c(0,0)) +
+  scale_y_continuous(expand=c(0,0)) +
+  scale_fill_gradient(low="black",high="white") +
+  coord_fixed() +
+  plotTheme() +
+  theme(legend.position = "none")
+}
+```
 
 ### A work in progress
-
-
-
-
-
-
-
-
-
-
