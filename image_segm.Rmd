@@ -1,5 +1,5 @@
 ---
-title: "<br>Image Segmentation"
+title: "<br>Segmentation of Brain MR Images"
 author: "Derek Wayne"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output:
@@ -11,21 +11,13 @@ output:
       before_body: header.html
       after_body: footer.html
 knit: (function(inputFile, encoding) { rmarkdown::render(inputFile, encoding = encoding, output_file = file.path(dirname(inputFile), 'index.html')) })
-subtitle: Applications to Neuroimaging Analysis
+subtitle: Modeling Spatial Dependencies using Markov Random Field Theory
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 knitr::opts_knit$set(eval.after = 'fig.cap')
 ```
-
-# Introduction
-
-The methods of [cluster analysis](https://derekwayne.github.io/clustering/) can be applied to the process of segmenting an image by assigning to each pixel a label indicating some form of shared characteristic such as boundaries or colours. The goal is to identify important regions of an image where each segment belongs to one particular surface, object, etc. There are applications in image processing/compression, object recognition, database searching, and edge detection for feature extraction.
-
-The purpose of this project is to go over in detail the process of segmenting an image. The image involved will determine which frameworks are most effective in achieving a good segmentation of the image. We will look at the K-means algorithm, which performs well when objects in an image are well separated in a colour space; and we will look at a more advanced procedure for the task of segmenting soft tissues present in medical images of the brain.
-
-# Simple Colour-Based Example
 
 ```{r include=FALSE}
 library(imager)
@@ -34,141 +26,9 @@ library(dplyr)
 library(kableExtra)
 library(knitr)
 ```
-The [Imager](https://cran.r-project.org/web/packages/imager/index.html) package cotains some example images to work with. We will import the parrots file as it can highlight the ease with which algorithms can segment within a 3 dimensional color space (*RGB*).
-```{r}
-file <- system.file('extdata/parrots.png',package='imager')
-parrots <- load.image(file)
-parrots
-```
-The data is stored as a `cimg` class, which behaves identically as an array. For purposes of plotting with the ggplot2 package, which requires data be stored as a dataframe we convert the default cmig object. 
-```{r}
-parrots_df <- as.data.frame(parrots,wide="c") %>% # wide format with channels as columns
-  mutate(rgb.val=rgb(c.1,c.2,c.3)) 
-names <- c("x", "y", "R", "G", "B", "rgb.val")
-colnames(parrots_df) <- names
-```
-
-```{r plotting theme, echo=FALSE}
-# ggplot theme to be used
-plotTheme <- function() {
-  theme(
-    panel.background = element_rect(
-      size = 1,
-      colour = "black",
-      fill = "white"),
-    axis.ticks = element_line(
-      size = 2),
-    panel.grid.major = element_line(
-      colour = "gray80",
-      linetype = "dotted"),
-    panel.grid.minor = element_line(
-      colour = "gray90",
-      linetype = "dashed"),
-    axis.title.x = element_text(
-      size = rel(1.2)),
-    axis.title.y = element_text(
-      size = rel(1.2)),
-    plot.title = element_text(
-      size = 20,
-      vjust = 1.5)
-  )
-}
-```
-```{r eval=FALSE, include=FALSE}
-# Plot the image
-ggplot(data = parrots_df, aes(x = x, y = y)) +
-  geom_point(colour = rgb(parrots_df[c("R", "G", "B")])) +
-  labs(title = "Original Image") +
-  xlab("x") +
-  ylab("y") +
-  scale_y_reverse() +
-  plotTheme() +
-  coord_fixed()
-ggsave("images/parrots_original.jpg")
-```
-```{r echo=FALSE, out.width = '50%'}
-include_graphics("images/parrots_original.jpg")
-
-# RGB Histograms
-parrots_df2 <- as.data.frame(parrots) %>%
-  mutate(channel=factor(cc,labels=c('R','G','B')))
-
-ggplot(parrots_df2,aes(value,col=channel))+geom_histogram(bins=30)+facet_wrap(~ channel) + plotTheme() + theme(legend.position = "none")
-```
 
 
-The image has a wide colour palette that we hope will serve as the basis of our segmentation. Without using spacial information, each pixel has a corresponding 3-dimentional vector of color channels -- red, green, and blue. The K-means algorithm should perform well here since the colours help to differentiate the parrots from each other and the background (i.e. good separation).
-
-
-# The K-Means++ Solution
-
-The K-means method is a simple solution to the problem of finding clusters centers that minimize the variance within each cluster. Each cluster in our problem refers to a specific colour value. Consequently, a pixel is considered to be "like" another if they are near each other in the colour space. Euclidean distance will define the notion of "nearness". K-means requires that we specify the number of clusters a-priori. Determining the optimal number of clusters depends on the problem at hand. The goal of segmenting an image is only to find the clusters/colours that we deem most important in separating the objects. The salient colours in the parrots image are red, green, turquoise, yellow, white, and black. So we might choose the number of clusters to be around 6-8. Next, we need to choose a method of initalization for the pixel centers. The K-means++ algorithm is a seeding procedure for the centers which results in an improvement of the final error and a decrease in computation time. Intuitively, initial centers should be chosen such that they are not too close together. This idea is implemented in the function below.
-
-```{r}
-# rows are centers
-centers <- function(x, k) {
-  x <- as.matrix(x)
-  center.mat <- matrix(0, nrow=k,ncol=ncol(x))
-  center.init <- x[sample(nrow(x), size=1), ]
-  center.mat[1, ] <- center.init
-  for (i in 2:k) {
-    e.dist <- sqrt(rowSums((x-center.init)^2)) # compute euclidean distance
-    probs <- e.dist^2 / (max(e.dist)^2 + 1) # weighted probability
-    center.new <- x[sample(nrow(x), size=1, prob=probs), ]
-    
-    center.mat[i, ] <- center.new
-  }
-  center.mat
-}
-```
-
-Although this initialization process does require some computational effort, the K-means procedure should converge more quickly on average. Now we will use this in conjunction with R's built in `kmeans` function.
-
-```{r}
-kmpp <- function(x, k) {
-  centers <- centers(x, k)
-  kmeans(x, centers)
-}
-```
-
-
-```{r}
-cl <- kmpp(parrots_df[, c("R", "G", "B")], k=8) # 8 clusters
-kColours <- rgb(cl$centers[cl$cluster, ])
-cl2 <- kmpp(parrots_df[, c("R", "G", "B")], k=6) # 6 clusters
-k2colours <- rgb(cl2$centers[cl2$cluster, ])
-```
-
-## Results
-
-```{r eval=FALSE, fig.show="hold", include=FALSE, out.width="50%"}
-ggplot(data = parrots_df, aes(x = x, y = y)) +
-  geom_point(colour = k2colours) +
-  labs(title = paste("k-Means Clustering of", 6, "Colours")) +
-  xlab("x") +
-  ylab("y") +
-  scale_y_reverse() +
-  plotTheme() +
-  coord_fixed()
-ggsave("images/parrots_6cl.jpg")
-
-ggplot(data = parrots_df, aes(x = x, y = y)) +
-  geom_point(colour = kColours) +
-  labs(title = paste("k-Means Clustering of", 8, "Colours")) +
-  xlab("x") +
-  ylab("y") +
-  scale_y_reverse() +
-  plotTheme() +
-  coord_fixed()
-ggsave("images/parrots_8cl.jpg")
-```
-```{r echo=FALSE, out.width = "50%", fig.show="hold"}
-include_graphics("images/parrots_6cl.jpg")
-include_graphics("images/parrots_8cl.jpg")
-```
-
-# Application to Neuroimaging
-## Segmentation of T1-weighted Brain MR Acquisitions
+## Introduction
 
 A magnetic resonance imaging (MRI) scan of the brain presents an important application of image-based segmentation. For example, an accurately segmented scan can assist in the diagnosis of brain disease and in the preparation of surgery. The three main tissue classes that are normally segmentated in a scan are white matter (WM), gray matter (GM), and cerebrospinal fluid (CSF). Facilitating segmentation requires high contrasts between these tissue types. To generate improved tissue contrasts requires varying parameters of the pulse sequences responsible for causing the hydrogen atoms contained in the body to emit radio frequencies when subjected to a magnetic field. The contrasts achieved through MRI scans is an improvement over computed tomography. However, results still suffer from the following obstacles to segmentation
 
@@ -201,6 +61,33 @@ mask <- readMRI(system.file("extdata/mask.rawb.gz", package="mritc"),
                 c(91, 109, 91), format="rawb.gz")
 ```
 
+```{r plotting theme, echo=FALSE}
+# ggplot theme to be used
+plotTheme <- function() {
+  theme(
+    panel.background = element_rect(
+      size = 1,
+      colour = "black",
+      fill = "white"),
+    axis.ticks = element_line(
+      size = 2),
+    panel.grid.major = element_line(
+      colour = "gray80",
+      linetype = "dotted"),
+    panel.grid.minor = element_line(
+      colour = "gray90",
+      linetype = "dashed"),
+    axis.title.x = element_text(
+      size = rel(1.2)),
+    axis.title.y = element_text(
+      size = rel(1.2)),
+    plot.title = element_text(
+      size = 20,
+      vjust = 1.5)
+  )
+}
+```
+
 ```{r include=FALSE}
 slice1 <- T1[,,45] # axial
 slice2 <- T1[45,,] # coronal
@@ -221,7 +108,7 @@ p1 <- ggplot(slice_df1,aes(x,y))+geom_raster(aes(fill=value)) +
   scale_fill_gradient(low="black",high="white") +
   coord_fixed() +
   plotTheme() +
-  theme(legend.position = "none")
+  theme(legend.position = "none") + theme(plot.margin = unit(c(.2, 0, .2, 5), "cm"))
 p1
 
 p2 <- ggplot(slice_df2,aes(x,y))+geom_raster(aes(fill=value)) +
@@ -241,13 +128,13 @@ p3 <- ggplot(slice_df3,aes(x,y))+geom_raster(aes(fill=value)) +
   scale_fill_gradient(low="black",high="white") +
   coord_fixed() +
   plotTheme() +
-  theme(legend.position = "none")
+  theme(legend.position = "none") + theme(plot.margin = unit(c(.2, 5, .2, 0), "cm"))
 p3
 ```
 
 ## Constructing a Markov Random Field
 
-To make inferences on the data we consider an three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to $N = 91 \times 109 \times 91$ voxels making up the three dimensional image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). Below is a density plots of the signal intensities taken from three different levels of depth into the saggital plane.
+To make inferences on the data we consider a three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to $N = 91 \times 109 \times 91$ voxels making up the three dimensional image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). Below is a density plots of the signal intensities taken from three different levels of depth into the saggital plane.
 
 ```{r, echo = FALSE, fig.show="hold", out.width="50%"}
 t1 <- T1
