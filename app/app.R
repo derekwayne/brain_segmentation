@@ -60,7 +60,6 @@ plt_brain <- function(plane = "saggital", k, mask) {
   mask_df <- as.data.frame(mask.img)
   
   ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
-    labs(title = "Axial/Transverse View") +
     scale_x_continuous(expand=c(0,0)) +
     scale_y_continuous(expand=c(0,0)) +
     scale_fill_gradient(low="black",high="white") +

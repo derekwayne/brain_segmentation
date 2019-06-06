@@ -112,7 +112,7 @@ p1 <- ggplot(slice_df1,aes(x,y))+geom_raster(aes(fill=value)) +
 p1
 
 p2 <- ggplot(slice_df2,aes(x,y))+geom_raster(aes(fill=value)) +
-  labs(title = "Saggital View") +
+  labs(title = "Saggital View", x="y", y="z") +
   scale_x_continuous(expand=c(0,0)) +
   scale_y_continuous(expand=c(0,0)) +
   scale_fill_gradient(low="black",high="white") +
@@ -122,7 +122,7 @@ p2 <- ggplot(slice_df2,aes(x,y))+geom_raster(aes(fill=value)) +
 p2
 
 p3 <- ggplot(slice_df3,aes(x,y))+geom_raster(aes(fill=value)) +
-  labs(title = "Coronal View") +
+  labs(title = "Coronal View", y="z") +
   scale_x_continuous(expand=c(0,0)) +
   scale_y_continuous(expand=c(0,0)) +
   scale_fill_gradient(low="black",high="white") +
@@ -134,7 +134,7 @@ p3
 
 ## Constructing a Markov Random Field
 
-To make inferences on the data we consider a three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to $N = 91 \times 109 \times 91$ voxels making up the three dimensional image, and $\mathcal{E}$ corresponds to undirected edges. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the pixel intensities (observations). Below is a density plots of the signal intensities taken from three different levels of depth into the saggital plane.
+To make inferences on the data we consider a three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to $N = 91 \times 109 \times 91$ voxels making up the three dimensional image, and $\mathcal{E}$ corresponds to the undirected edges connecting the nodes. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the signal intensities. Below is a density plots of the intensities taken from three different levels of depth into the saggital plane. The binary mask removes non-brain matter from the data.
 
 ```{r, echo = FALSE, fig.show="hold", out.width="50%"}
 t1 <- T1
@@ -145,7 +145,7 @@ slice1 <- t1[50,,] %>%
   as.data.frame()
 
 ggplot(slice1,aes(x,y))+geom_raster(aes(fill=value)) +
-  labs(title = "Saggital View: with mask") +
+  labs(title = "Saggital View: with mask", x="y", y="z") +
   scale_x_continuous(expand=c(0,0)) +
   scale_y_continuous(expand=c(0,0)) +
   scale_fill_gradient(low="black",high="white") +
@@ -167,11 +167,11 @@ df <- suppressMessages(melt(df, na.rm = TRUE))
 # overlaid density plots
 ggplot(df,aes(x=value, fill=variable)) + geom_density(alpha=0.25, na.rm = TRUE) + plotTheme() +
   labs(title = "Density plot of Signal Intensities") +
-  scale_fill_discrete(name = "Levels of Depth", labels = c("50", "30", "70"))
+  scale_fill_discrete(name = "x=", labels = c("50", "30", "70"))
   
 ```
 
-Heuristically, we assume the three modes present in the above plot correspond to our three classes. CSF often attains lower values, GM tends to land somehwere in the middle, and WM most often have the highest intensities. From this information a mixture of three Gaussian distributions seems like an appropriate model. The limitation of this approach rests with the fact that there is no spacial information accounted for. 
+Heuristically, we assume the three modes present in the above density plots correspond to our three classes. CSF often attains lower values, GM tends to land somehwere in the middle, and WM most often have the highest intensities. From this information a mixture of three Gaussian distributions seems like an appropriate model. The limitation of this approach rests with the fact that there is no spacial information accounted for. 
 
 ```{r echo=FALSE, out.width = "40%", out.extra='style="float:right; padding:10px"'}
 include_graphics("images/voxel_nbhd.png")
@@ -190,7 +190,7 @@ The sequence of voxel labels, denoted $\{X_1, \dots, X_{N}\}$ is said to be a Ma
 $$
 P(\mathbf{x}) = \frac{1}{Z}exp\bigg\{-\sum_{c\in\mathcal{C}}\Psi_c(\mathbf{x}) \bigg\}
 $$
-where $Z$ represents the normalizing constant (or partition function) to make the distribution sum to unity, and $E(\mathbf{x}) = \sum_{c \in \mathcal{C}}\Psi_c(\mathbf{x})$ is the cost function for the learning stage. Here $\mathcal{C}$ denotes the collection of cliques in the graph $\mathcal{G}$. A clique $c$ is a subgraph of $\mathcal{G}$ that is fully connected -- meaning each distinct pair of voxel sites ($i, j \, : i\neq j$) are neighbouring ($i \in \mathcal{N_j} \wedge j \in \mathcal{N_i}$).
+where $Z$ represents the normalizing constant (or partition function) to make the distribution sum to unity, and $E(\mathbf{x}) = \sum_{c \in \mathcal{C}}\Psi_c(\mathbf{x})$ is the cost function for the learning stage. Here $\mathcal{C}$ denotes the collection of cliques in the graph $\mathcal{G}$. A clique $c$ is a subgraph of $\mathcal{G}$ that is fully connected -- simply meaning each distinct pair of voxel sites ($i, j \, : i\neq j$) are neighbouring ($i \in \mathcal{N_j} \wedge j \in \mathcal{N_i}$).
 
 The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathbf{x})$ when two neighbouring voxels have similar intensities, and thus increase the joint probability $P(\mathbf{x})$.
 
@@ -217,7 +217,7 @@ where $\theta = \{\theta_s, s \in \mathcal{S} \}$ (Yongyue Zhang et al., eq (9))
 $$
 p(\mathbf{y} \, | \, \mathbf{x}_{\mathcal{N}}, \, \theta) = \prod_{i=1}^N\sum_{s\in \mathcal{S}}\mathcal{N}(y_i \, ; \, \mu_s, \sigma_s)p(s \, |\, x_{\mathcal{N}_i})
 $$
-It can be seen that if we had assumed that the tissue types were independent of each other, the equation above reduces to the finite normal mixture model -- thus highlighting the key difference between the HMRF model and the FM model.
+It can be seen that if we had assumed that the tissue types were independent of each other, the equation above reduces to the finite normal mixture model -- thus highlighting the key difference between the HMRF model and the FM model. The parameters for an FM model can be learned through a standard EM approach, which we shall compare.
 
 ## Tissue Classification using Iterated Conditional Modes
 
@@ -276,7 +276,7 @@ library(gtable)
 library(grid)
 ```
 
-```{r echo = FALSE, fig.align="center", out.width="70%"}
+```{r echo = FALSE, fig.align="center", out.width="65%"}
 summarytable <- as.data.frame(initial) %>%
   round(2)
 
@@ -307,20 +307,29 @@ grid.arrange(plt, tbl,
              widths = c(2.8,1.5))
 ```
 
-### Model Fitting
+The estimates for initial parameters can be fit to the distribution of signal intensities as shown above. By inspection they appear to be quite reasonable.
 
-```{r}
-mrispatial <- makeMRIspatial(mask, nnei = 6, sub = FALSE)
-```
+### Model Fitting and Evaluation
 
-```{r}
-tc.hmrfem <- mritc.hmrfem(y, mrispatial$neighbors, mrispatial$blocks, mu=mu, sigma=sigma, verbose = FALSE)
-```
+In this section we compare two proposed models. The FM model, which again does not account for any spacial dependencies between voxels, can be fitted using the EM algorithm with our initialized determined in the previous section by Otsu's method.
 
 ```{r}
 tc.em <- mritc.em(y, prop=prop, mu=mu, sigma=sigma, verbose = FALSE)
 ```
 
+The HMRF-EM model is then fitted using a neighbourhood structure consisting of six nodes. The `makeMRIspatial` function from the *mritc* package can be used to get various spatial features for the data to be used as inputs for the `tc.hmrfem` function.
+
+```{r}
+mrispatial <- makeMRIspatial(mask, nnei = 6, sub = FALSE)
+```
+
+This creates parameters for the neighbourhood structure and the blocks; capturing the conditional independence of voxels given the voxels of another block.
+
+```{r}
+tc.hmrfem <- mritc.hmrfem(y, mrispatial$neighbors, mrispatial$blocks, mu=mu, sigma=sigma, verbose = FALSE)
+```
+
+Next, we use create the matrix of true proportions of each class per voxel for evaluation using the `measureMRI` function. As an input the truth matrix will have rows corresponding to each voxel, and columns giving the actual probability that a voxel is of each tissue type.   
 
 ```{r}
 csf <- readMRI(system.file("extdata/csf.rawb.gz", package = "mritc"),
@@ -330,14 +339,18 @@ gm <- readMRI(system.file("extdata/gm.rawb.gz", package = "mritc"),
 wm <- readMRI(system.file("extdata/wm.rawb.gz", package = "mritc"),
  c(91, 109, 91), format = "rawb.gz")
 
-truth <- cbind(csf[mask == 1], gm[mask == 1], wm[mask == 1])
-truth <- truth/255
+truth <- cbind(csf[mask == 1], gm[mask == 1], wm[mask == 1]) # ture proportions
+truth <- truth/255 # matrix of true classification results
 ```
+
+The `measureMRI` function will output density plots comparing the actual density against the estimated for each tissue class with labels (1) for CSF, (2) for GM, and (3) for WM.
 
 ```{r fig.show="hold", out.width="50%"}
 res.hmrf <- measureMRI(T1[mask == 1], truth, tc.hmrfem$prob)
 res.em <- measureMRI(T1[mask == 1], truth, tc.em$prob)
 ```
+
+The predicted results appear best for the HMRF-EM method across all tissue types. The EM estimates obtained with the FM model are most innacurate at distinguishing between WM and GM. This can be explained by the fact that CSF and WM do not often appear adjacent, and so are more easily separable. To improve the distinction between WM and GM, occuring frequently together, it is necessary to incorperate this spatial relationship. This improvement is evidenced in the superior performance of the HMRF-EM results. To further support this, we can look at the missclassification rates among tissue types. 
 
 ```{r echo=FALSE, fig.show="hold", out.width="50%"}
 actual <- c(rep("CSF",3), rep("GM",3), rep("WM",3))
@@ -363,24 +376,19 @@ ggplot(data =  ctable.em, mapping = aes(x = predicted, y = actual)) +
   geom_text(aes(label =  value.em), vjust = 1) +
   scale_fill_gradient(low = "white", high = "steelblue") +
   plotTheme() + theme(legend.position = "none") +
-  labs(title = "EM")
+  labs(title = "FM-EM")
 ```
 
+### Segmentation Results {.tabset}
 
-[Interactive Result Plots](https://derekwayne.shinyapps.io/brain_mri_segmentation/)
-
-## Conclusion
-
-
-```{r echo = FALSE}
+```{r include=FALSE}
 tc.icm <- mritc(T1, mask, method = "ICM")
 t1 <- T1
 t1[mask == 1] <- 0
 icm.class <- max.col(tc.icm$prob)
 tc.icm$mask[tc.icm$mask == 1] <- icm.class
 ```
-
-```{r echo = FALSE}
+```{r echo=FALSE}
 plt_brain <- function(plane = "saggital", k, mask) {
   # mask is a three dimensional array -- from mritc object
   
@@ -391,7 +399,6 @@ plt_brain <- function(plane = "saggital", k, mask) {
   mask_df <- as.data.frame(mask.img)
   
 ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
-  labs(title = "Axial/Transverse View") +
   scale_x_continuous(expand=c(0,0)) +
   scale_y_continuous(expand=c(0,0)) +
   scale_fill_gradient(low="black",high="white") +
@@ -400,5 +407,30 @@ ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
   theme(legend.position = "none")
 }
 ```
+
+#### Transverse Plane
+
+```{r echo = FALSE, fig.align="center"}
+plt_brain(plane = "transverse", k = 45, mask=mask)
+```
+
+#### Saggital Plane
+
+```{r echo = FALSE, fig.align="center"}
+plt_brain(plane = "saggital", k = 45, mask=mask) + labs(x="y", y="z")
+```
+
+#### Coronal Plane
+
+```{r echo = FALSE, fig.align="center"}
+plt_brain(plane = "coronal", k = 45, mask=mask) + labs(y="z")
+```
+
+
+[Interactive Result Plots](https://derekwayne.shinyapps.io/brain_mri_segmentation/)
+
+## Conclusion
+
+
 
 ### A work in progress
