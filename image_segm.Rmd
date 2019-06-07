@@ -36,7 +36,7 @@ A magnetic resonance imaging (MRI) scan of the brain presents an important appli
 2. A bias field -- An unwanted artifact producing inhomogenous intensities of tissue regions
 3. The partial volume effect -- overlap of tissue classes within a voxel
 
-The paper [Segmentation of Brain MR Images Through a Hidden Markov Random Field Model and the Expectation-Maximization Algorith](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.200.3832&rep=rep1&type=pdf) by Yongyue Zhang et al. provides justification for a Hidden Markov Random Field (HMRF) model together with an Expectation Maximization (EM) method of iterative parameter updating, for a framework that effectively overcomes these difficulties in segmentation.
+The paper [Segmentation of Brain MR Images Through a Hidden Markov Random Field Model and the Expectation-Maximization Algorith](http://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.200.3832&rep=rep1&type=pdf) by Yongyue Zhang et al. provides justification for a Hidden Markov Random Field (HMRF) model together with an Expectation Maximization (EM) method of iterative parameter updating, for a framework that incorperates the spatial dependencies innate to three dimensional scans. It will be demonstrated that this is an improvement over the classical approach using a finite mixture (FM) model.
 
 In this project we adopt this framework to segment an MRI scan obtained from the *mritc* package. The success of this approach offers a means for automatic brain MR image segmentation.
 
@@ -190,7 +190,7 @@ The sequence of voxel labels, denoted $\{X_1, \dots, X_{N}\}$ is said to be a Ma
 $$
 P(\mathbf{x}) = \frac{1}{Z}exp\bigg\{-\sum_{c\in\mathcal{C}}\Psi_c(\mathbf{x}) \bigg\}
 $$
-where $Z$ represents the normalizing constant (or partition function) to make the distribution sum to unity, and $E(\mathbf{x}) = \sum_{c \in \mathcal{C}}\Psi_c(\mathbf{x})$ is the cost function for the learning stage. Here $\mathcal{C}$ denotes the collection of cliques in the graph $\mathcal{G}$. A clique $c$ is a subgraph of $\mathcal{G}$ that is fully connected -- simply meaning each distinct pair of voxel sites ($i, j \, : i\neq j$) are neighbouring ($i \in \mathcal{N_j} \wedge j \in \mathcal{N_i}$).
+where $Z$ represents the normalizing constant (or partition function) to make the distribution sum to unity, and $E(\mathbf{x}) = \sum_{c \in \mathcal{C}}\Psi_c(\mathbf{x})$ is known as an *energy function*. Here $\mathcal{C}$ denotes the collection of cliques in the graph $\mathcal{G}$. A clique $c$ is a subgraph of $\mathcal{G}$ that is fully connected -- simply meaning each distinct pair of voxel sites ($i, j \, : i\neq j$) are neighbouring ($i \in \mathcal{N_j} \wedge j \in \mathcal{N_i}$).
 
 The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathbf{x})$ when two neighbouring voxels have similar intensities, and thus increase the joint probability $P(\mathbf{x})$.
 
@@ -253,9 +253,10 @@ include_graphics("images/bias_field.png")
 
 
 Source for figure on the right: [A New Multistage Medical Segmentation Method Based on Superpixel and Fuzzy Clustering](https://www.researchgate.net/figure/The-illustration-of-bias-field-in-MRI-image_fig12_261738082)
+
 ## Experiments
 
-In the following implementations we adopt the pure voxel assumption. That is, we do not consider the partial volume effect. This is because we only have data containing the true labels for three classes, and therefore cannot calculate the misclassification error assuming the extra two combination classes discussed earlier.
+In the following implementations we adopt the pure voxel assumption. That is, we do not consider the partial volume effect. This is because we only have data containing the true labels for three classes, and therefore cannot produce a confusion table assuming the extra two combination classes discussed earlier.
 
 ### Initializing Parameters with Otsu's Method
 
@@ -350,7 +351,7 @@ res.hmrf <- measureMRI(T1[mask == 1], truth, tc.hmrfem$prob)
 res.em <- measureMRI(T1[mask == 1], truth, tc.em$prob)
 ```
 
-The predicted results appear best for the HMRF-EM method across all tissue types. The EM estimates obtained with the FM model are most innacurate at distinguishing between WM and GM. This can be explained by the fact that CSF and WM do not often appear adjacent, and so are more easily separable. To improve the distinction between WM and GM, occuring frequently together, it is necessary to incorperate this spatial relationship. This improvement is evidenced in the superior performance of the HMRF-EM results. To further support this, we can look at the missclassification rates among tissue types. 
+The predicted results appear best for the HMRF-EM method across all tissue types. The EM estimates obtained with the FM model are most innacurate at distinguishing between WM and GM. This can be explained by the fact that CSF and WM do not often appear adjacent, and so are more easily separable. To improve the distinction between WM and GM, occuring frequently together, it is necessary to incorperate this spatial relationship. This improvement is evidenced in the superior performance of the HMRF-EM results. To further support this, we can look at the mis-classification rates (MCR), and a confusion matrix. 
 
 ```{r echo=FALSE, fig.show="hold", out.width="50%"}
 actual <- c(rep("CSF",3), rep("GM",3), rep("WM",3))
@@ -379,7 +380,11 @@ ggplot(data =  ctable.em, mapping = aes(x = predicted, y = actual)) +
   labs(title = "FM-EM")
 ```
 
-### Segmentation Results {.tabset}
+The confusion matrix for the FM model shows decent performance in properly identifying CSF and GM with a classification accruacy of 90% and 96% respectively. Again, we can see that the limitations of the FM model account for the lower accuracy given for WM classification (79%). The confusion matrix on the left gives the improved results from the HMRF-EM framework. The MCR for the FM model and the HMRF model are `r round(res.em$misclass, 3)` and `r round(res.hmrf$misclass, 3)` respectively.
+
+### Example Segmentation Results {.tabset}
+
+The following plots are an example of a complete segmentation. In each plane we have dark gray pixels marking CSF, light gray pixels marking GM, and white pixels marking WM. To view an interactive visualization, allowing one to adjust the depth of each plane see my [Interactive Result Plots](https://derekwayne.shinyapps.io/brain_mri_segmentation/) made with *ShinyR*.
 
 ```{r include=FALSE}
 tc.icm <- mritc(T1, mask, method = "ICM")
@@ -427,10 +432,6 @@ plt_brain(plane = "coronal", k = 45, mask=mask) + labs(y="z")
 ```
 
 
-[Interactive Result Plots](https://derekwayne.shinyapps.io/brain_mri_segmentation/)
-
 ## Conclusion
 
-
-
-### A work in progress
+The framework implemented in this project is based on the work by Zhang et al. (2001). The research has demonstrated that the HMRF model is more robust, and an overall improvement over the popular FM model. We also addressed specific problems in obtaining an accurate segmentation, including: partial volume effect and presence of a bias field. The *mritc* package was used throughout and contains numerous functions to handle specific data objectives. Furthermore, because MRI data can be extremely large in size, the package performs some of its heavy computations with **C** code and the OpenMP framework for shared memory parallel computing; making it very efficient. Thus, the HMRF model provides an improved automatic approach to brain MRI segmentation, offering more accurate tissue classification over more traditional models.
