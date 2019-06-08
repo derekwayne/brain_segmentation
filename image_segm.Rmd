@@ -100,7 +100,6 @@ slice_df1 <- as.cimg(slice1) %>% as.data.frame()
 slice_df2 <- as.cimg(slice2) %>% as.data.frame()
 slice_df3 <- as.cimg(slice3) %>% as.data.frame()
 
-
 p1 <- ggplot(slice_df1,aes(x,y))+geom_raster(aes(fill=value)) +
   labs(title = "Axial/Transverse View") +
   scale_x_continuous(expand=c(0,0)) +
@@ -110,7 +109,6 @@ p1 <- ggplot(slice_df1,aes(x,y))+geom_raster(aes(fill=value)) +
   plotTheme() +
   theme(legend.position = "none") + theme(plot.margin = unit(c(.2, 0, .2, 5), "cm"))
 p1
-
 p2 <- ggplot(slice_df2,aes(x,y))+geom_raster(aes(fill=value)) +
   labs(title = "Saggital View", x="y", y="z") +
   scale_x_continuous(expand=c(0,0)) +
@@ -394,44 +392,89 @@ icm.class <- max.col(tc.icm$prob)
 tc.icm$mask[tc.icm$mask == 1] <- icm.class
 ```
 ```{r echo=FALSE}
-plt_brain <- function(plane = "saggital", k, mask) {
+plt_brain <- function(plane = "saggital", k, WM=T, GM=T, CSF=T) {
   # mask is a three dimensional array -- from mritc object
   
-  if (plane == "saggital") mask.img <- as.cimg(tc.icm$mask[k,,])
-  else if (plane == "coronal") mask.img <- as.cimg(tc.icm$mask[,k,])
-  else mask.img <- as.cimg(tc.icm$mask[,,k])
+  if (plane == "saggital") {
+    slice <- T1[k,,] # original image
+    wm <- as.cimg(tc.icm$mask[k,,]) %>% as.data.frame()
+    gm <- as.cimg(tc.icm$mask[k,,]) %>% as.data.frame()
+    csf <- as.cimg(tc.icm$mask[k,,]) %>% as.data.frame()
+  }
+  else if (plane == "coronal") {
+    slice <- T1[,k,] # original image
+    wm <- as.cimg(tc.icm$mask[,k,]) %>% as.data.frame()
+    gm <- as.cimg(tc.icm$mask[,k,]) %>% as.data.frame()
+    csf <- as.cimg(tc.icm$mask[,k,]) %>% as.data.frame()
+  }
+  else {
+    slice <- T1[,,k] # original image
+    wm <- as.cimg(tc.icm$mask[,,k]) %>% as.data.frame()
+    gm <- as.cimg(tc.icm$mask[,,k]) %>% as.data.frame()
+    csf <- as.cimg(tc.icm$mask[,,k]) %>% as.data.frame()
+  }
   
-  mask_df <- as.data.frame(mask.img)
+  slice_df <- as.cimg(slice) %>% as.data.frame() # df for ggplot2
   
-ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
-  scale_x_continuous(expand=c(0,0)) +
-  scale_y_continuous(expand=c(0,0)) +
-  scale_fill_gradient(low="black",high="white") +
-  coord_fixed() +
-  plotTheme() +
-  theme(legend.position = "none")
+  # create segmented overlays
+  # WM
+  wm$value[wm$value != 3] <- NA # isolate WM
+  wm$value[!is.na(wm$value)] <- "#f6bb13" # assign a colour val to tissue type
+  # GM
+  gm$value[gm$value != 2] <- NA
+  gm$value[!is.na(gm$value)] <- "#a83e27"
+  # CSF
+  csf$value[csf$value != 1] <- NA
+  csf$value[!is.na(csf$value)] <- "#91ae34"
+  
+  plt <- ggplot(slice_df,aes(x,y)) + geom_raster(aes(fill=value)) +
+    scale_x_continuous(expand=c(0,0)) +
+    scale_y_continuous(expand=c(0,0)) +
+    scale_fill_continuous(low="black",high="white", na.value = NA) +
+    coord_fixed() +
+    plotTheme() +
+    theme(legend.position = "none")
+  
+  # conditional overlays
+  if (WM == T) {
+    plt <- plt + annotate(geom = 'raster', x = wm$x, y = wm$y,
+           fill = wm$value, na.rm = TRUE, alpha=0.8)
+  }
+  if (GM == T) {
+    plt <- plt + annotate(geom = 'raster', x = gm$x, y = gm$y,
+           fill = gm$value, na.rm = TRUE, alpha=0.8)
+  }
+  if (CSF == T) {
+    plt <- plt + annotate(geom = 'raster', x = csf$x, y = csf$y,
+           fill = csf$value, na.rm = TRUE, alpha=0.8)
+  }
+  
+  plt
 }
 ```
 
 #### Transverse Plane
 
 ```{r echo = FALSE, fig.align="center"}
-plt_brain(plane = "transverse", k = 45, mask=mask)
+plt_brain(plane = "transverse", k = 45)
 ```
 
 #### Saggital Plane
 
 ```{r echo = FALSE, fig.align="center"}
-plt_brain(plane = "saggital", k = 45, mask=mask) + labs(x="y", y="z")
+plt_brain(plane = "saggital", k = 45) + labs(x="y", y="z")
 ```
 
 #### Coronal Plane
 
 ```{r echo = FALSE, fig.align="center"}
-plt_brain(plane = "coronal", k = 45, mask=mask) + labs(y="z")
+plt_brain(plane = "coronal", k = 45) + labs(y="z")
 ```
 
 
 ## Conclusion
 
 The framework implemented in this project is based on the work by Zhang et al. (2001). The research has demonstrated that the HMRF model is more robust, and an overall improvement over the popular FM model. We also addressed specific problems in obtaining an accurate segmentation, including: partial volume effect and presence of a bias field. The *mritc* package was used throughout and contains numerous functions to handle specific data objectives. Furthermore, because MRI data can be extremely large in size, the package performs some of its heavy computations with **C** code and the OpenMP framework for shared memory parallel computing; making it very efficient. Thus, the HMRF model provides an improved automatic approach to brain MRI segmentation, offering more accurate tissue classification over more traditional models.
+
+
+

@@ -50,22 +50,64 @@ plotTheme <- function() {
   )
 }
 
-plt_brain <- function(plane = "saggital", k, mask) {
+plt_brain <- function(plane = "saggital", k, WM=T, GM=T, CSF=T) {
   # mask is a three dimensional array -- from mritc object
   
-  if (plane == "saggital") mask.img <- as.cimg(tc.icm$mask[k,,])
-  else if (plane == "coronal") mask.img <- as.cimg(tc.icm$mask[,k,])
-  else mask.img <- as.cimg(tc.icm$mask[,,k])
+  if (plane == "saggital") {
+    slice <- T1[k,,] # original image
+    wm <- as.cimg(tc.icm$mask[k,,]) %>% as.data.frame()
+    gm <- as.cimg(tc.icm$mask[k,,]) %>% as.data.frame()
+    csf <- as.cimg(tc.icm$mask[k,,]) %>% as.data.frame()
+  }
+  else if (plane == "coronal") {
+    slice <- T1[,k,] # original image
+    wm <- as.cimg(tc.icm$mask[,k,]) %>% as.data.frame()
+    gm <- as.cimg(tc.icm$mask[,k,]) %>% as.data.frame()
+    csf <- as.cimg(tc.icm$mask[,k,]) %>% as.data.frame()
+  }
+  else {
+    slice <- T1[,,k] # original image
+    wm <- as.cimg(tc.icm$mask[,,k]) %>% as.data.frame()
+    gm <- as.cimg(tc.icm$mask[,,k]) %>% as.data.frame()
+    csf <- as.cimg(tc.icm$mask[,,k]) %>% as.data.frame()
+  }
   
-  mask_df <- as.data.frame(mask.img)
+  slice_df <- as.cimg(slice) %>% as.data.frame() # df for ggplot2
   
-  ggplot(mask_df,aes(x,y))+geom_raster(aes(fill=value)) +
+  # create segmented overlays
+  # WM
+  wm$value[wm$value != 3] <- NA # isolate WM
+  wm$value[!is.na(wm$value)] <- "#f6bb13" # assign a colour val to tissue type
+  # GM
+  gm$value[gm$value != 2] <- NA
+  gm$value[!is.na(gm$value)] <- "#a83e27"
+  # CSF
+  csf$value[csf$value != 1] <- NA
+  csf$value[!is.na(csf$value)] <- "#91ae34"
+  
+  plt <- ggplot(slice_df,aes(x,y)) + geom_raster(aes(fill=value)) +
     scale_x_continuous(expand=c(0,0)) +
     scale_y_continuous(expand=c(0,0)) +
-    scale_fill_gradient(low="black",high="white") +
+    scale_fill_continuous(low="black",high="white", na.value = NA) +
     coord_fixed() +
     plotTheme() +
     theme(legend.position = "none")
+  
+  # conditional overlays
+  if (WM == T) {
+    plt <- plt + annotate(geom = 'raster', x = wm$x, y = wm$y,
+                          fill = wm$value, na.rm = TRUE, alpha=0.8)
+  }
+  if (GM == T) {
+    plt <- plt + annotate(geom = 'raster', x = gm$x, y = gm$y,
+                          fill = gm$value, na.rm = TRUE, alpha=0.8)
+  }
+  if (CSF == T) {
+    plt <- plt + annotate(geom = 'raster', x = csf$x, y = csf$y,
+                          fill = csf$value, na.rm = TRUE, alpha=0.8)
+  }
+  
+  plt
 }
 
 # SHINY UI AND SERVER
@@ -86,7 +128,14 @@ ui <- fluidPage(
                   label = "Depth:",
                   min = 12,
                   max = 77,
-                  value = 50)
+                  value = 50),
+      
+      checkboxInput("CSF", "Cerebrospinal Fluid",
+                    value = FALSE),
+      checkboxInput("GM", "Gray Matter",
+                    value = FALSE),
+      checkboxInput("WM", "White Matter",
+                    value = FALSE)
     ),
     
     mainPanel(
@@ -107,19 +156,19 @@ server <- function(input, output) {
   
   output$transverse <- renderPlot({
     
-    plt_brain(plane = "transverse", input$k, mask=tc.icm$mask)
+    plt_brain(plane = "transverse", input$k, WM=input$WM, GM=input$GM, CSF=input$CSF)
     
   })
   
   output$saggital <- renderPlot({
     
-    plt_brain(plane = "saggital", input$k, mask=tc.icm$mask)
+    plt_brain(plane = "saggital", input$k, WM=input$WM, GM=input$GM, CSF=input$CSF)
     
   })
   
   output$coronal <- renderPlot({
     
-    plt_brain(plane = "coronal", input$k, mask=tc.icm$mask)
+    plt_brain(plane = "coronal", input$k, WM=input$WM, GM=input$GM, CSF=input$CSF)
     
   })
   
