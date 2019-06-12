@@ -382,7 +382,7 @@ The confusion matrix for the FM model shows decent performance in properly ident
 
 ### Example Segmentation Results {.tabset}
 
-The following plots are an example of a complete segmentation. In each plane we have dark gray pixels marking CSF, light gray pixels marking GM, and white pixels marking WM. To view an interactive visualization, allowing one to adjust the depth of each plane see my [Interactive Result Plots](https://derekwayne.shinyapps.io/brain_mri_segmentation/) made with *ShinyR*.
+The following plots are an example of a complete segmentation. In each plane we have green pixels marking CSF, red pixels marking GM, and yellow pixels marking WM. To view an interactive visualization, allowing one to adjust the depth of each plane see my [Interactive Result Plots](https://derekwayne.shinyapps.io/brain_mri_segmentation/) made with *ShinyR*.
 
 ```{r include=FALSE}
 tc.icm <- mritc(T1, mask, method = "ICM")
