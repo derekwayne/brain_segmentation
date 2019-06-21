@@ -23,14 +23,13 @@ knitr::opts_knit$set(eval.after = 'fig.cap')
 library(imager)
 library(ggplot2)
 library(dplyr)
-library(kableExtra)
 library(knitr)
 ```
 
 
 ## Introduction
 
-A magnetic resonance imaging (MRI) scan of the brain presents an important application of image-based segmentation. For example, an accurately segmented scan can assist in the diagnosis of brain disease and in the preparation of surgery. The three main tissue classes that are normally segmentated in a scan are white matter (WM), gray matter (GM), and cerebrospinal fluid (CSF). Facilitating segmentation requires high contrasts between these tissue types. To generate improved tissue contrasts requires varying parameters of the pulse sequences responsible for causing the hydrogen atoms contained in the body to emit radio frequencies when subjected to a magnetic field. The contrasts achieved through MRI scans is an improvement over computed tomography. However, results still suffer from the following obstacles to segmentation
+A magnetic resonance imaging (MRI) scan of the brain presents an important application of image segmentation techniques. For example, an accurately segmented scan can assist in the diagnosis of brain disease and in the preparation of surgery. The three main tissue classes that are normally segmentated in a scan are white matter (WM), gray matter (GM), and cerebrospinal fluid (CSF). Facilitating segmentation requires high contrasts between these tissue types. To generate improved tissue contrasts requires varying parameters of the pulse sequences responsible for causing the hydrogen atoms contained in the body to emit radio frequencies when subjected to a magnetic field. The contrasts achieved through MRI scans is an improvement over computed tomography. However, results still suffer from the following obstacles to segmentation
 
 1. Electronic noise -- disturbance in the electrical signal
 2. A bias field -- An unwanted artifact producing inhomogenous intensities of tissue regions
@@ -44,13 +43,14 @@ In this project we adopt this framework to segment an MRI scan obtained from the
 ```{r echo=FALSE, out.width = "20%", out.extra='style="float:right; padding:10px"'}
 include_graphics("images/voxels.png")
 ```
-The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the *mritc* package can be used to obtain a three dimensional array with the appropriate image dimensions. The three dimensional analogue to a pixel is called a voxel -- a unit within a three dimensional grid (as shown on the right); representing a signal intensity (ranging from 0 to 250).
+The Neuroimaging Informatics Technology Initiative (NIfTI) format is an improvement on the ANALYZE format, retaining a header/image combination of data but also allowing for storage of auxillary information inside the file. The `readMRI` function from the *mritc* package can be used to obtain a three dimensional array with the appropriate image dimensions.
+
+An image pixel can be understood as a sample of some original image we would like to display on a screen. If we could then imagine a volumetric display (giving a three dimensional representation of an object), then what is called a voxel extends the concept as a sample from some three dimensional object (as shown on the right). Each voxel also contains a value; in our case this value represents the signal intensity, which ranges from 0 to 250.
 
 Source for figure to the right: https://commons.wikimedia.org/wiki/File:Voxels.svg
 
 ```{r include=FALSE}
 library(mritc)
-library(tkrplot)
 ```
 ```{r}
 # Read in NIfTI data
@@ -94,7 +94,6 @@ slice2 <- T1[45,,] # coronal
 slice3 <- T1[,50,] # saggital
 ```
 
-
 ```{r, echo = FALSE, fig.show="hold", out.width="33%"}
 slice_df1 <- as.cimg(slice1) %>% as.data.frame()
 slice_df2 <- as.cimg(slice2) %>% as.data.frame()
@@ -132,7 +131,7 @@ p3
 
 ## Constructing a Markov Random Field
 
-To make inferences on the data we consider a three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to $N = 91 \times 109 \times 91$ voxels making up the three dimensional image, and $\mathcal{E}$ corresponds to the undirected edges connecting the nodes. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the signal intensities. Below is a density plots of the intensities taken from three different levels of depth into the saggital plane. The binary mask removes non-brain matter from the data.
+To make inferences on the data (comprising the entire scan) we consider a three dimensional image graph denoted $\mathcal{G} = (\mathcal{V}, \mathcal{E})$, where $\mathcal{V}$ is the set of nodes corresponding to $N = 91 \times 109 \times 91$ voxels making up the three dimensional image, and $\mathcal{E}$ corresponds to the undirected edges connecting the voxels. As mentioned earlier, the set of hidden classes attributable to each node is $\mathcal{S} =\{WM, GM, CSF \}$, which are to be estimated from the signal intensities. Below is a density plots of the intensities taken from three different levels of depth into the saggital plane. The binary mask removes non-brain matter from the data.
 
 ```{r, echo = FALSE, fig.show="hold", out.width="50%"}
 t1 <- T1
@@ -175,7 +174,7 @@ Heuristically, we assume the three modes present in the above density plots corr
 include_graphics("images/voxel_nbhd.png")
 ```
 
-To incorperate the greater likelihood of neighbouring voxels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between voxels. A Markov model accounts only for the dependencies between voxels sharing a common edge. That is, for voxel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$.
+To incorperate the greater likelihood of neighbouring voxels to share a class label, an edge $(i,j) \in \mathcal{E}$ must be accompanied by a bias that encodes such a tendency between voxels. The Markov model accounts only for the dependencies between voxels sharing a common edge and does not include higher order dependencies among neighbours. That is, for voxel $i$ define the set of its neighbours to be $\mathcal{N_i} = \{j: (i,j) \in \mathcal{E} \}$.
 
 Source for figure to the right:  [Photogrammetric Engineering & Remote Sensing, Volume 84, Number 6](https://www.ingentaconnect.com/contentone/asprs/pers/2018/00000084/00000006/art00015?crawler=true&mimetype=application/pdf#)
 
@@ -194,27 +193,28 @@ The value of the clique potential $\Psi_c(\mathbf{x})$ should decrease $E(\mathb
 
 ## A Special Case of a Hidden Markov Model
 
-Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, N\}$ the sequence of voxel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two or three dimensional image, we assume the generating stochastic process is the more general Markov random field; as in the previous section.
+Without the spacial property incorperated by the definition of the neighbourhood system $\{\mathcal{N_i}, i = 1, 2, \dots, N\}$ the sequence of voxel labels can be characterized by a first order Markov chain whose state space is hidden and cannot be observed. This implies a proper hidden Markov model (HMM). However, to model the spatial property of a two or three dimensional image, we assume the generating stochastic process is the more general Markov random field; as mentioned in the previous section.
 
-In addition to the hidden random field $\{X_i, i = 1, 2, \dots, N \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, N \}$ having the finite state space $\mathcal{D} = \{0,1, \dots, 250\}$ representing the voxel intensities. We call $Y$ the *emitted random field*, where $Y_i \perp Y_j  \, | \, \mathbf{x}$ for $i \neq j$.
+In addition to the hidden random field $\{X_i, i = 1, 2, \dots, N \}$ we must model the *observable random field* $Y = \{Y_i, i = 1,2, \dots, N \}$ having the finite state space $\mathcal{D} = \{0,1, \dots, 250\}$ representing the signal intensities attributable to each voxel. We call $Y$ the *emitted random field*, where $Y_i \perp Y_j  \, | \, \mathbf{x}$ for $i \neq j$.
 
 Given a sequence of class labels $\{x_i \}$ the likelihood of each observed intensity value has the conditional probability distribution $p(y_i \, | \, x_i, \theta_s)$, with $\theta_s$ dependent on the states $s \in \mathcal{S}$. Accounting for the local dependencies within neighbourhoods $\mathcal{N}_i$ from the MRF, each pair $(X_i, Y_i)$ has the joint probability
 
 $$
 P(y_i , x_i \, | \, x_{\mathcal{N}_i}) = P(y_i \, | x_i)P(x_i \, | \, x_{\mathcal{N}_i})
 $$
-by applying Bayes' rule (Yongyue Zhang et al., eq (8)). Thus, by marginalizing over the states $s \in \mathcal{S}$ obtain
+by applying Bayes' rule (Zhang et al. 2001, eq (8)). Thus, by marginalizing over the states $s \in \mathcal{S}$ obtain
 $$
 \begin{aligned}
 p(y_i \, | \, x_{\mathcal{N}_i}, \, \theta) &= \sum_{s \in \mathcal{S}}p(y_i, s \, | \, x_{\mathcal{N}_i}, \theta) \\
 &= \sum_{s \in \mathcal{S}} f(y_i; \theta_s)p(s \, | x_{\mathcal{N}_i})
 \end{aligned}
 $$
-where $\theta = \{\theta_s, s \in \mathcal{S} \}$ (Yongyue Zhang et al., eq (9)). Where Zhang (2001) defines this to be the *hidden Markov random field* model. We assume that the intensity values are independent and normally distributed with parameters $\theta_s = (\mu_s, \sigma_s)^T$ depending on the tissue class. That is,
+where $\theta = \{\theta_s, s \in \mathcal{S} \}$. Where Zhang (2001) defines this to be the *hidden Markov random field* model. We assume that the intensity values are independent and normally distributed with parameters $\theta_s = (\mu_s, \sigma_s)^T$ depending on the tissue class. That is,
 
 $$
 p(\mathbf{y} \, | \, \mathbf{x}_{\mathcal{N}}, \, \theta) = \prod_{i=1}^N\sum_{s\in \mathcal{S}}\mathcal{N}(y_i \, ; \, \mu_s, \sigma_s)p(s \, |\, x_{\mathcal{N}_i})
 $$
+
 It can be seen that if we had assumed that the tissue types were independent of each other, the equation above reduces to the finite normal mixture model -- thus highlighting the key difference between the HMRF model and the FM model. The parameters for an FM model can be learned through a standard EM approach, which we shall compare.
 
 ## Tissue Classification using Iterated Conditional Modes
@@ -260,7 +260,12 @@ In the following implementations we adopt the pure voxel assumption. That is, we
 
 Both the EM (for model parameters) and ICM (for label estiamtion) algorithms are not guaranteed to converge globally. Thus, the choice of initial conditions can determine the success of the segmentation.
 
-Otsu's method can be used to determine estimates of the means and variances for each class from the grayscale histogram of an image. The algorithm seeks to find thresholds which minimize the intraclass variances.
+Otsu's method of global thresholding can be used to determine estimates of the means and variances for each class from the grayscale histogram. For example, beginning with CSF, the algorithm assumes that two classes exist (CSF and everything else). There are 250 bins of the normalized histogram $h(x)$, which will be used to estimate the true density $p(x)$. To find an optimal threshold $T$, we must minimize the intra-class variance, i.e.
+$$
+\text{arg}\min_T \, w_{0,T}\sigma_0^2 + w_{1,T}\sigma_1^2
+$$
+where $w_{0,T}$, $w_{1,T}$ are the class probabilities, and $\sigma_0^2$, $\sigma_1^2$ are the class variances. Upon convergence we will have an estimate of the mean and variance for the voxel intensities corresponding to CSF. The process is repeated for the other two tissue types.
+
 ```{r}
 y <- T1[mask==1]
 initial <- initOtsu(y, 2)
@@ -379,6 +384,8 @@ ggplot(data =  ctable.em, mapping = aes(x = predicted, y = actual)) +
 ```
 
 The confusion matrix for the FM model shows decent performance in properly identifying CSF and GM with a classification accruacy of 90% and 96% respectively. Again, we can see that the limitations of the FM model account for the lower accuracy given for WM classification (79%). The confusion matrix on the left gives the improved results from the HMRF-EM framework. The MCR for the FM model and the HMRF model are `r round(res.em$misclass, 3)` and `r round(res.hmrf$misclass, 3)` respectively.
+
+If the cost of mis-classification for one tissue type is greater than another, then accuracy is not an ideal performance metric. Depending on the goals of the analysis, a scan may be taken with adjustments to the machine's parameters which better separate specific signal intensities. It is also worth noting that the MCR compares the voxel classifications to the discrete anatomic model which introduces rounding error. In this sense, any partial volume effects are not accounted for. 
 
 ### Example Segmentation Results {.tabset}
 
