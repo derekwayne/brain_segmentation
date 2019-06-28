@@ -2,6 +2,7 @@
 title: "<br>Segmentation of Brain MR Images"
 author: "Derek Wayne"
 date: "`r format(Sys.time(), '%d %B %Y')`"
+description: Three dimensional image processing; Segmenting brain MRI ccans
 output:
   html_document:
     df_print: paged
@@ -478,10 +479,73 @@ plt_brain(plane = "saggital", k = 45) + labs(x="y", y="z")
 plt_brain(plane = "coronal", k = 45) + labs(y="z")
 ```
 
-
 ## Conclusion
 
 The framework implemented in this project is based on the work by Zhang et al. (2001). The research has demonstrated that the HMRF model is more robust, and an overall improvement over the popular FM model. We also addressed specific problems in obtaining an accurate segmentation, including: partial volume effect and presence of a bias field. The *mritc* package was used throughout and contains numerous functions to handle specific data objectives. Furthermore, because MRI data can be extremely large in size, the package performs some of its heavy computations with **C** code and the OpenMP framework for shared memory parallel computing; making it very efficient. Thus, the HMRF model provides an improved automatic approach to brain MRI segmentation, offering more accurate tissue classification over more traditional models.
+
+```{r include = FALSE, eval=FALSE}
+# code to run a higher resolution scan
+library(fslr)
+fpath <- "NIFTI/Template-T1-U8-RALPFH-BR.nii.gz"
+img <- readNIfTI(fpath, reorient = FALSE)
+
+ss = fslbet(infile = fpath, retimg = TRUE) # brain extraction
+fst <- fast(img) # hmrf
+
+slice <- img[,,260]
+
+mask <- fst[,,260] %>%
+  as.cimg() %>%
+  as.data.frame()
+
+wm <- mask[mask$value == 3, ]
+gm <- mask[mask$value == 2, ]
+csf <- mask[mask$value == 1, ]
+
+wm$value[!is.na(wm$value)] <- "#f6bb13" # assign a colour val to tissue type
+gm$value[!is.na(gm$value)] <- "#a83e27"
+csf$value[!is.na(csf$value)] <- "#91ae34"
+
+slice.df <- as.cimg(slice) %>%
+  as.data.frame()
+
+
+theme_none <- theme(legend.position = "none",
+        panel.grid = element_blank(),
+        axis.title = element_blank(),
+        axis.text = element_blank(),
+        axis.ticks = element_blank(),
+        panel.background = element_blank())
+
+plt <- ggplot(slice.df,aes(x,y)) + geom_raster(aes(fill=value)) +
+    scale_x_continuous(expand=c(0,0)) +
+    scale_y_continuous(expand=c(0,0)) +
+    scale_fill_continuous(low="black",high="white", na.value = NA) +
+    coord_fixed(ratio=1/2) +
+    theme_none +
+    theme(legend.position = "none")
+
+plt + annotate(geom = 'raster', x = wm$x, y = wm$y,
+           fill = wm$value, na.rm = TRUE, alpha=0.7) +
+  annotate(geom = 'raster', x = gm$x, y = gm$y,
+           fill = gm$value, na.rm = TRUE, alpha=0.7) +
+  annotate(geom = 'raster', x = csf$x, y = csf$y,
+           fill = csf$value, na.rm = TRUE, alpha=0.7)
+
+ggsave("brain_seg.png")
+```
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
